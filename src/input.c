@@ -6,6 +6,11 @@
 #include <stdlib.h>
 #include <unistd.h>
 
+#ifdef USE_READLINE
+#include <readline/history.h>
+#include <readline/readline.h>
+#endif
+
 static char *read_plain_line(const char *prompt, int interactive)
 {
     size_t  cap;
@@ -48,6 +53,16 @@ static char *read_plain_line(const char *prompt, int interactive)
 
 char *shell_read_line(const char *prompt, int interactive)
 {
+#ifdef USE_READLINE
+    if (interactive) {
+        char *line;
+
+        line = readline(prompt != NULL ? prompt : "");
+        if (line != NULL && line[0] != '\0')
+            add_history(line);
+        return line;
+    }
+#endif
     return read_plain_line(prompt, interactive);
 }
 
