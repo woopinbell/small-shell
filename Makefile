@@ -5,7 +5,9 @@ LDFLAGS ?=
 LDLIBS ?=
 
 TARGET := small-shell
-SRCS := src/main.c
+SRCS := \
+	src/main.c \
+	src/input.c
 OBJS := $(SRCS:.c=.o)
 
 all: $(TARGET)
