@@ -7,7 +7,8 @@ LDLIBS ?=
 TARGET := small-shell
 SRCS := \
 	src/main.c \
-	src/input.c
+	src/input.c \
+	src/utils.c
 OBJS := $(SRCS:.c=.o)
 
 ifeq ($(USE_READLINE),1)
