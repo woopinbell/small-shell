@@ -3,8 +3,17 @@
 
 # include <stddef.h>
 
+typedef struct s_env {
+    char            *key;
+    char            *value;
+    int             exported;
+    struct s_env    *next;
+}   t_env;
+
 typedef struct s_shell {
-    int running;
+    t_env   *env;
+    int     last_status;
+    int     running;
 }   t_shell;
 
 char    *shell_read_line(const char *prompt, int interactive);
@@ -19,5 +28,7 @@ char    *shell_itoa_status(int status);
 void    shell_strv_free(char **words);
 int     sh_is_name_char(int c);
 int     sh_is_name_start(int c);
+t_env   *env_from_environ(char **envp);
+void    env_free(t_env *env);
 
 #endif
