@@ -17,5 +17,7 @@ void    sh_free_words(char **words);
 char    *shell_strndup(const char *s, size_t len);
 char    *shell_itoa_status(int status);
 void    shell_strv_free(char **words);
+int     sh_is_name_char(int c);
+int     sh_is_name_start(int c);
 
 #endif
