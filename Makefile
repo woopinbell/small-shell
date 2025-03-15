@@ -10,6 +10,11 @@ SRCS := \
 	src/input.c
 OBJS := $(SRCS:.c=.o)
 
+ifeq ($(USE_READLINE),1)
+CPPFLAGS += -DUSE_READLINE
+LDLIBS += -lreadline
+endif
+
 all: $(TARGET)
 
 $(TARGET): $(OBJS)
@@ -18,7 +23,10 @@ $(TARGET): $(OBJS)
 %.o: %.c
 	$(CC) $(CPPFLAGS) $(CFLAGS) -c -o $@ $<
 
+readline:
+	$(MAKE) USE_READLINE=1
+
 clean:
 	rm -f $(TARGET) $(OBJS)
 
-.PHONY: all clean
+.PHONY: all readline clean
