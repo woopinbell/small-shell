@@ -1,5 +1,6 @@
 #include "shell.h"
 
+#include <ctype.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -127,4 +128,12 @@ char *shell_itoa_status(int status) {
 
 void shell_strv_free(char **words) {
     sh_free_words(words);
+}
+
+int sh_is_name_start(int c) {
+    return (isalpha((unsigned char)c) || c == '_');
+}
+
+int sh_is_name_char(int c) {
+    return (isalnum((unsigned char)c) || c == '_');
 }
