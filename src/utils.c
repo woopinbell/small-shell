@@ -91,6 +91,40 @@ char *shell_strndup(const char *s, size_t len) {
     return out;
 }
 
+char *shell_itoa_status(int status) {
+    char    buf[32];
+    long    value;
+    size_t  len;
+    char    *out;
+
+    value = status;
+    len = 0;
+    if (value < 0) {
+        buf[len++] = '-';
+        value = -value;
+    }
+    if (value == 0)
+        buf[len++] = '0';
+    else {
+        char digits[24];
+        size_t count;
+
+        count = 0;
+        while (value > 0) {
+            digits[count++] = (char)('0' + (value % 10));
+            value /= 10;
+        }
+        while (count > 0)
+            buf[len++] = digits[--count];
+    }
+    buf[len] = '\0';
+    out = (char *)malloc(len + 1);
+    if (!out)
+        return NULL;
+    memcpy(out, buf, len + 1);
+    return out;
+}
+
 void shell_strv_free(char **words) {
     sh_free_words(words);
 }
