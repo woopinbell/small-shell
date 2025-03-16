@@ -30,5 +30,9 @@ int     sh_is_name_char(int c);
 int     sh_is_name_start(int c);
 t_env   *env_from_environ(char **envp);
 void    env_free(t_env *env);
+const char  *env_get(t_env *env, const char *key);
+int     env_set(t_env **env, const char *key, const char *value, int exported);
+int     env_unset(t_env **env, const char *key);
+int     shell_env_is_valid_name(const char *key);
 
 #endif
