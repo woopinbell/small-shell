@@ -17,6 +17,7 @@ int main(int argc, char **argv, char **envp)
     shell.env = env_from_environ(envp);
     shell.last_status = 0;
     shell.running = 1;
+
     shell_loop(&shell);
     result = shell.last_status;
     env_free(shell.env);
