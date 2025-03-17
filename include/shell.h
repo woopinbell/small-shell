@@ -33,6 +33,8 @@ void    env_free(t_env *env);
 const char  *env_get(t_env *env, const char *key);
 int     env_set(t_env **env, const char *key, const char *value, int exported);
 int     env_unset(t_env **env, const char *key);
+char    **env_to_environ(t_env *env);
+void    env_print(t_env *env, int declare_style);
 int     shell_env_is_valid_name(const char *key);
 
 #endif
