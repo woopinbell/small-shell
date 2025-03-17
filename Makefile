@@ -8,6 +8,7 @@ TARGET := small-shell
 SRCS := \
 	src/main.c \
 	src/input.c \
+	src/token.c \
 	src/env.c \
 	src/utils.c
 OBJS := $(SRCS:.c=.o)
