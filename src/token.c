@@ -1,6 +1,7 @@
 #include "shell.h"
 
 #include <stdlib.h>
+#include <string.h>
 
 #define LITERAL_MARK '\001'
 
@@ -90,19 +91,51 @@ t_token *tokenize_line(const char *line, char **error) {
             i++;
         if (!line[i])
             break;
-        if (is_operator_char(line[i])) {
+        if (line[i] == '|') {
+            if (line[i + 1] == '|') {
+                push_token(&head, &tail, new_token(TOK_OR, sh_strdup("||"), i));
+                i += 2;
+            } else {
+                push_token(&head, &tail, new_token(TOK_PIPE, sh_strdup("|"), i));
+                i++;
+            }
+        } else if (line[i] == '&' && line[i + 1] == '&') {
+            push_token(&head, &tail, new_token(TOK_AND, sh_strdup("&&"), i));
+            i += 2;
+        } else if (line[i] == '&') {
             if (error)
-                *error = sh_strdup("syntax error: unsupported operator");
+                *error = sh_strdup("syntax error: unsupported operator '&'");
             free_tokens(head);
             return NULL;
+        } else if (line[i] == ';') {
+            push_token(&head, &tail, new_token(TOK_SEQ, sh_strdup(";"), i));
+            i++;
+        } else if (line[i] == '<') {
+            if (line[i + 1] == '<') {
+                if (error)
+                    *error = sh_strdup("syntax error: unsupported operator '<<'");
+                free_tokens(head);
+                return NULL;
+            }
+            push_token(&head, &tail, new_token(TOK_REDIR_IN, sh_strdup("<"), i));
+            i++;
+        } else if (line[i] == '>') {
+            if (line[i + 1] == '>') {
+                push_token(&head, &tail, new_token(TOK_REDIR_APPEND, sh_strdup(">>"), i));
+                i += 2;
+            } else {
+                push_token(&head, &tail, new_token(TOK_REDIR_OUT, sh_strdup(">"), i));
+                i++;
+            }
+        } else {
+            start = i;
+            word = read_word(line, &i, error);
+            if (!word) {
+                free_tokens(head);
+                return NULL;
+            }
+            push_token(&head, &tail, new_token(TOK_WORD, word, start));
         }
-        start = i;
-        word = read_word(line, &i, error);
-        if (!word) {
-            free_tokens(head);
-            return NULL;
-        }
-        push_token(&head, &tail, new_token(TOK_WORD, word, start));
     }
     return head;
 }
