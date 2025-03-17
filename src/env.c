@@ -1,5 +1,6 @@
 #include "shell.h"
 
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -129,4 +130,44 @@ int env_unset(t_env **env, const char *key) {
         cur = cur->next;
     }
     return 0;
+}
+
+char **env_to_environ(t_env *env) {
+    size_t  count;
+    size_t  i;
+    char    **out;
+    char    *pair;
+    t_env   *cur;
+
+    count = 0;
+    cur = env;
+    while (cur) {
+        if (cur->key && cur->exported)
+            count++;
+        cur = cur->next;
+    }
+    out = (char **)sh_xcalloc(count + 1, sizeof(char *));
+    i = 0;
+    cur = env;
+    while (cur) {
+        if (cur->key && cur->exported) {
+            pair = sh_strjoin_free(sh_strdup(cur->key), "=");
+            pair = sh_strjoin_free(pair, cur->value);
+            out[i++] = pair;
+        }
+        cur = cur->next;
+    }
+    return out;
+}
+
+void env_print(t_env *env, int declare_style) {
+    while (env) {
+        if (env->key && env->exported) {
+            if (declare_style)
+                printf("declare -x %s=\"%s\"\n", env->key, env->value);
+            else
+                printf("%s=%s\n", env->key, env->value);
+        }
+        env = env->next;
+    }
 }
