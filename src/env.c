@@ -5,7 +5,9 @@
 #include <string.h>
 
 static t_env *env_new(const char *key, const char *value, int exported) {
-    t_env *node = (t_env *)sh_xcalloc(1, sizeof(t_env));
+    t_env *node;
+
+    node = (t_env *)sh_xcalloc(1, sizeof(t_env));
     node->key = sh_strdup(key);
     node->value = sh_strdup(value ? value : "");
     node->exported = exported ? 1 : 0;
@@ -36,34 +38,38 @@ int shell_env_is_valid_name(const char *key) {
 }
 
 t_env *env_from_environ(char **envp) {
-    t_env *head = NULL;
-    t_env *tail = NULL;
-    size_t i;
+    t_env   *head;
+    t_env   *tail;
+    size_t  i;
+    char    *eq;
+    char    *key;
+    t_env   *node;
 
-    if (!envp)
-        return NULL;
-    for (i = 0; envp[i]; i++) {
-        const char *eq = strchr(envp[i], '=');
-        char *key;
-        t_env *node;
-
-        if (!eq)
-            continue;
-        key = sh_substr(envp[i], 0, (size_t)(eq - envp[i]));
-        node = env_new(key, eq + 1, 1);
-        free(key);
-        if (!head)
-            head = node;
-        else
-            tail->next = node;
-        tail = node;
+    head = NULL;
+    tail = NULL;
+    i = 0;
+    while (envp && envp[i]) {
+        eq = strchr(envp[i], '=');
+        if (eq) {
+            key = sh_substr(envp[i], 0, (size_t)(eq - envp[i]));
+            node = env_new(key, eq + 1, 1);
+            free(key);
+            if (!head)
+                head = node;
+            else
+                tail->next = node;
+            tail = node;
+        }
+        i++;
     }
     return head;
 }
 
 void env_free(t_env *env) {
+    t_env *next;
+
     while (env) {
-        t_env *next = env->next;
+        next = env->next;
         free(env->key);
         free(env->value);
         free(env);
@@ -170,4 +176,83 @@ void env_print(t_env *env, int declare_style) {
         }
         env = env->next;
     }
+}
+
+static int is_sentinel(t_env *env) {
+    return (env && !env->key && !env->value && env->exported == 0);
+}
+
+static t_env *env_head(t_env *env) {
+    if (is_sentinel(env))
+        return env->next;
+    return env;
+}
+
+static const t_env *env_head_const(const t_env *env) {
+    if (env && !env->key && !env->value && env->exported == 0)
+        return env->next;
+    return env;
+}
+
+int shell_env_init(t_env *env, char **envp) {
+    if (!env)
+        return 1;
+    env->key = NULL;
+    env->value = NULL;
+    env->exported = 0;
+    env->next = env_from_environ(envp);
+    return 0;
+}
+
+void shell_env_free(t_env *env) {
+    if (!env)
+        return;
+    if (is_sentinel(env)) {
+        env_free(env->next);
+        env->next = NULL;
+        return;
+    }
+    env_free(env);
+}
+
+const char *shell_env_get(const t_env *env, const char *key) {
+    const t_env *node;
+
+    node = env_head_const(env);
+    while (node) {
+        if (node->key && key && strcmp(node->key, key) == 0)
+            return node->value;
+        node = node->next;
+    }
+    return NULL;
+}
+
+int shell_env_set(t_env *env, const char *key, const char *value, int exported) {
+    t_env *head;
+
+    if (!env)
+        return 1;
+    if (is_sentinel(env))
+        return env_set(&env->next, key, value, exported);
+    head = env;
+    return env_set(&head, key, value, exported);
+}
+
+int shell_env_unset(t_env *env, const char *key) {
+    t_env *head;
+
+    if (!env)
+        return 1;
+    if (is_sentinel(env))
+        return env_unset(&env->next, key);
+    head = env;
+    return env_unset(&head, key);
+}
+
+char **shell_env_export_list(t_env *env) {
+    return env_to_environ(env_head(env));
+}
+
+char **shell_env_to_envp(t_env *env) {
+    return env_to_environ(env_head(env));
 }
