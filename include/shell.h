@@ -3,6 +3,17 @@
 
 # include <stddef.h>
 
+typedef enum e_token_type {
+    TOK_WORD
+}   t_token_type;
+
+typedef struct s_token {
+    t_token_type    type;
+    char            *text;
+    size_t          start;
+    struct s_token  *next;
+}   t_token;
+
 typedef struct s_env {
     char            *key;
     char            *value;
@@ -28,6 +39,8 @@ char    *shell_itoa_status(int status);
 void    shell_strv_free(char **words);
 int     sh_is_name_char(int c);
 int     sh_is_name_start(int c);
+t_token *tokenize_line(const char *line, char **error);
+void    free_tokens(t_token *tokens);
 t_env   *env_from_environ(char **envp);
 void    env_free(t_env *env);
 const char  *env_get(t_env *env, const char *key);
