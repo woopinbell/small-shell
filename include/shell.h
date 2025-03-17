@@ -21,6 +21,43 @@ typedef struct s_token {
     struct s_token  *next;
 }   t_token;
 
+typedef enum e_redir_type {
+    REDIR_IN,
+    REDIR_OUT,
+    REDIR_APPEND
+}   t_redir_type;
+
+# define SHELL_REDIR_IN REDIR_IN
+# define SHELL_REDIR_OUT REDIR_OUT
+# define SHELL_REDIR_APPEND REDIR_APPEND
+
+typedef struct s_redir {
+    t_redir_type    type;
+    char            *target;
+    struct s_redir  *next;
+}   t_redir;
+
+typedef struct s_command {
+    char                **argv;
+    size_t              argc;
+    t_redir             *redirs;
+    struct s_command    *next;
+}   t_command;
+
+typedef enum e_connector {
+    CONN_NONE,
+    CONN_SEQ,
+    CONN_AND,
+    CONN_OR
+}   t_connector;
+
+typedef struct s_pipeline {
+    t_command           *commands;
+    size_t              command_count;
+    t_connector         next_op;
+    struct s_pipeline   *next;
+}   t_pipeline;
+
 typedef struct s_env {
     char            *key;
     char            *value;
@@ -48,6 +85,7 @@ int     sh_is_name_char(int c);
 int     sh_is_name_start(int c);
 t_token *tokenize_line(const char *line, char **error);
 void    free_tokens(t_token *tokens);
+void    free_pipeline(t_pipeline *pipeline);
 t_env   *env_from_environ(char **envp);
 void    env_free(t_env *env);
 const char  *env_get(t_env *env, const char *key);
