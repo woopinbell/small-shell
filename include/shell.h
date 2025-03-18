@@ -4,7 +4,14 @@
 # include <stddef.h>
 
 typedef enum e_token_type {
-    TOK_WORD
+    TOK_WORD,
+    TOK_PIPE,
+    TOK_REDIR_IN,
+    TOK_REDIR_OUT,
+    TOK_REDIR_APPEND,
+    TOK_AND,
+    TOK_OR,
+    TOK_SEQ
 }   t_token_type;
 
 typedef struct s_token {
