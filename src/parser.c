@@ -66,6 +66,21 @@ static int command_empty(t_command *cmd) {
     return (!cmd || (cmd->argc == 0 && !cmd->redirs));
 }
 
+static void append_command(t_pipeline *pipeline, t_command *cmd) {
+    t_command *tail;
+
+    if (!pipeline->commands) {
+        pipeline->commands = cmd;
+        pipeline->command_count++;
+        return;
+    }
+    tail = pipeline->commands;
+    while (tail->next)
+        tail = tail->next;
+    tail->next = cmd;
+    pipeline->command_count++;
+}
+
 static int token_is_redir(t_token_type type) {
     return (type == TOK_REDIR_IN || type == TOK_REDIR_OUT
         || type == TOK_REDIR_APPEND);
@@ -83,16 +98,19 @@ t_pipeline *parse_tokens(t_token *tokens, char **error) {
     t_pipeline  *pipeline;
     t_command   *cmd;
     t_token     *cur;
+    int         after_pipe;
 
     pipeline = new_pipeline();
     cmd = new_command();
     cur = tokens;
+    after_pipe = 0;
     if (error)
         *error = NULL;
     while (cur) {
-        if (cur->type == TOK_WORD)
+        if (cur->type == TOK_WORD) {
             add_arg(cmd, cur->text);
-        else if (token_is_redir(cur->type)) {
+            after_pipe = 0;
+        } else if (token_is_redir(cur->type)) {
             if (!cur->next || cur->next->type != TOK_WORD) {
                 set_error(error, "syntax error: redirection target missing");
                 free_commands(cmd);
@@ -101,21 +119,42 @@ t_pipeline *parse_tokens(t_token *tokens, char **error) {
             }
             add_redir(cmd, redir_type(cur->type), cur->next->text);
             cur = cur->next;
+            after_pipe = 0;
+        } else if (cur->type == TOK_PIPE) {
+            if (command_empty(cmd)) {
+                set_error(error, "syntax error: empty command before pipe");
+                free_commands(cmd);
+                free_pipeline(pipeline);
+                return NULL;
+            }
+            append_command(pipeline, cmd);
+            cmd = new_command();
+            after_pipe = 1;
         } else {
-            set_error(error, "syntax error: unsupported operator");
+            if (after_pipe)
+                set_error(error, "syntax error: expected command after pipe");
+            else
+                set_error(error, "syntax error: unsupported operator");
             free_commands(cmd);
-            free(pipeline);
+            free_pipeline(pipeline);
             return NULL;
         }
         cur = cur->next;
     }
-    if (command_empty(cmd)) {
+    if (after_pipe) {
+        set_error(error, "syntax error: expected command after pipe");
         free_commands(cmd);
-        free(pipeline);
+        free_pipeline(pipeline);
         return NULL;
     }
-    pipeline->commands = cmd;
-    pipeline->command_count = 1;
+    if (command_empty(cmd)) {
+        free_commands(cmd);
+        if (!pipeline->commands) {
+            free(pipeline);
+            return NULL;
+        }
+    } else
+        append_command(pipeline, cmd);
     return pipeline;
 }
 
