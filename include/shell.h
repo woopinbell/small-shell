@@ -85,6 +85,7 @@ int     sh_is_name_char(int c);
 int     sh_is_name_start(int c);
 t_token *tokenize_line(const char *line, char **error);
 void    free_tokens(t_token *tokens);
+t_pipeline  *parse_tokens(t_token *tokens, char **error);
 void    free_pipeline(t_pipeline *pipeline);
 t_env   *env_from_environ(char **envp);
 void    env_free(t_env *env);
