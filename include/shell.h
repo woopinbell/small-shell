@@ -76,6 +76,15 @@ typedef struct s_shell {
     int     running;
 }   t_shell;
 
+typedef int     (*t_shell_run_pipeline_fn)(const t_pipeline *pipeline,
+                    t_env *env, void *ctx);
+typedef void    (*t_shell_error_fn)(const char *message, void *ctx);
+
+typedef struct s_executor_hooks {
+    t_shell_run_pipeline_fn run_pipeline;
+    t_shell_error_fn        on_error;
+}   t_executor_hooks;
+
 char    *shell_read_line(const char *prompt, int interactive);
 void    shell_loop(t_shell *shell);
 char    *sh_strdup(const char *s);
@@ -95,6 +104,8 @@ void    free_pipeline(t_pipeline *pipeline);
 void    shell_sequence_init(t_sequence *sequence);
 void    shell_sequence_free(t_sequence *sequence);
 int     shell_parse_line(const char *line, t_sequence *sequence, char **error);
+int     shell_execute_sequence(const t_sequence *sequence, t_env *env,
+            int *last_status, const t_executor_hooks *hooks, void *ctx);
 t_env   *env_from_environ(char **envp);
 void    env_free(t_env *env);
 const char  *env_get(t_env *env, const char *key);

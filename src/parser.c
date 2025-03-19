@@ -287,3 +287,36 @@ int shell_parse_line(const char *line, t_sequence *sequence, char **error) {
     sequence->pipeline_count = count_pipelines(sequence->pipelines);
     return 0;
 }
+
+int shell_execute_sequence(const t_sequence *sequence, t_env *env,
+        int *last_status, const t_executor_hooks *hooks, void *ctx) {
+    const t_pipeline *pipeline;
+    t_connector gate;
+    int status;
+    int should_run;
+
+    if (!hooks || !hooks->run_pipeline) {
+        if (hooks && hooks->on_error)
+            hooks->on_error("missing executor pipeline hook", ctx);
+        if (last_status)
+            *last_status = 1;
+        return 1;
+    }
+    status = last_status ? *last_status : 0;
+    gate = CONN_NONE;
+    pipeline = sequence ? sequence->pipelines : NULL;
+    while (pipeline) {
+        should_run = 1;
+        if (gate == CONN_AND && status != 0)
+            should_run = 0;
+        if (gate == CONN_OR && status == 0)
+            should_run = 0;
+        if (should_run)
+            status = hooks->run_pipeline(pipeline, env, ctx);
+        gate = pipeline->next_op;
+        pipeline = pipeline->next;
+    }
+    if (last_status)
+        *last_status = status;
+    return status;
+}
