@@ -242,3 +242,48 @@ void free_pipeline(t_pipeline *pipeline) {
         pipeline = next;
     }
 }
+
+static size_t count_pipelines(t_pipeline *pipeline) {
+    size_t count;
+
+    count = 0;
+    while (pipeline) {
+        count++;
+        pipeline = pipeline->next;
+    }
+    return count;
+}
+
+void shell_sequence_init(t_sequence *sequence) {
+    if (!sequence)
+        return;
+    sequence->pipelines = NULL;
+    sequence->pipeline_count = 0;
+}
+
+void shell_sequence_free(t_sequence *sequence) {
+    if (!sequence)
+        return;
+    free_pipeline(sequence->pipelines);
+    shell_sequence_init(sequence);
+}
+
+int shell_parse_line(const char *line, t_sequence *sequence, char **error) {
+    t_token *tokens;
+
+    if (!sequence)
+        return 1;
+    shell_sequence_init(sequence);
+    tokens = tokenize_line(line, error);
+    if (!tokens) {
+        if (error && *error)
+            return 1;
+        return 0;
+    }
+    sequence->pipelines = parse_tokens(tokens, error);
+    free_tokens(tokens);
+    if (!sequence->pipelines && error && *error)
+        return 1;
+    sequence->pipeline_count = count_pipelines(sequence->pipelines);
+    return 0;
+}
