@@ -106,6 +106,7 @@ void    shell_sequence_free(t_sequence *sequence);
 int     shell_parse_line(const char *line, t_sequence *sequence, char **error);
 int     shell_execute_sequence(const t_sequence *sequence, t_env *env,
             int *last_status, const t_executor_hooks *hooks, void *ctx);
+char    *expand_word(t_shell *shell, const char *word);
 int     shell_dequote_word(const char *word, char **out, char **error);
 t_env   *env_from_environ(char **envp);
 void    env_free(t_env *env);
