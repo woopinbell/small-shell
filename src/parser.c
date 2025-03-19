@@ -81,6 +81,14 @@ static void append_command(t_pipeline *pipeline, t_command *cmd) {
     pipeline->command_count++;
 }
 
+static void append_pipeline(t_pipeline **head, t_pipeline **tail, t_pipeline *node) {
+    if (!*head)
+        *head = node;
+    else
+        (*tail)->next = node;
+    *tail = node;
+}
+
 static int token_is_redir(t_token_type type) {
     return (type == TOK_REDIR_IN || type == TOK_REDIR_OUT
         || type == TOK_REDIR_APPEND);
@@ -94,15 +102,29 @@ static t_redir_type redir_type(t_token_type type) {
     return REDIR_IN;
 }
 
+static t_connector connector_type(t_token_type type) {
+    if (type == TOK_AND)
+        return CONN_AND;
+    if (type == TOK_OR)
+        return CONN_OR;
+    return CONN_SEQ;
+}
+
 t_pipeline *parse_tokens(t_token *tokens, char **error) {
+    t_pipeline  *head;
+    t_pipeline  *tail;
     t_pipeline  *pipeline;
     t_command   *cmd;
     t_token     *cur;
+    t_token_type last_connector;
     int         after_pipe;
 
+    head = NULL;
+    tail = NULL;
     pipeline = new_pipeline();
     cmd = new_command();
     cur = tokens;
+    last_connector = TOK_WORD;
     after_pipe = 0;
     if (error)
         *error = NULL;
@@ -114,7 +136,8 @@ t_pipeline *parse_tokens(t_token *tokens, char **error) {
             if (!cur->next || cur->next->type != TOK_WORD) {
                 set_error(error, "syntax error: redirection target missing");
                 free_commands(cmd);
-                free(pipeline);
+                free_pipeline(pipeline);
+                free_pipeline(head);
                 return NULL;
             }
             add_redir(cmd, redir_type(cur->type), cur->next->text);
@@ -125,19 +148,37 @@ t_pipeline *parse_tokens(t_token *tokens, char **error) {
                 set_error(error, "syntax error: empty command before pipe");
                 free_commands(cmd);
                 free_pipeline(pipeline);
+                free_pipeline(head);
                 return NULL;
             }
             append_command(pipeline, cmd);
             cmd = new_command();
             after_pipe = 1;
         } else {
-            if (after_pipe)
+            if (after_pipe) {
                 set_error(error, "syntax error: expected command after pipe");
+                free_commands(cmd);
+                free_pipeline(pipeline);
+                free_pipeline(head);
+                return NULL;
+            }
+            if (command_empty(cmd) && !pipeline->commands) {
+                set_error(error, "syntax error: empty command before connector");
+                free_commands(cmd);
+                free_pipeline(pipeline);
+                free_pipeline(head);
+                return NULL;
+            }
+            if (!command_empty(cmd))
+                append_command(pipeline, cmd);
             else
-                set_error(error, "syntax error: unsupported operator");
-            free_commands(cmd);
-            free_pipeline(pipeline);
-            return NULL;
+                free_commands(cmd);
+            cmd = new_command();
+            pipeline->next_op = connector_type(cur->type);
+            append_pipeline(&head, &tail, pipeline);
+            last_connector = cur->type;
+            pipeline = new_pipeline();
+            after_pipe = 0;
         }
         cur = cur->next;
     }
@@ -145,17 +186,27 @@ t_pipeline *parse_tokens(t_token *tokens, char **error) {
         set_error(error, "syntax error: expected command after pipe");
         free_commands(cmd);
         free_pipeline(pipeline);
+        free_pipeline(head);
         return NULL;
     }
-    if (command_empty(cmd)) {
+    if (!command_empty(cmd))
+        append_command(pipeline, cmd);
+    else
         free_commands(cmd);
-        if (!pipeline->commands) {
-            free(pipeline);
+    if (!pipeline->commands) {
+        free(pipeline);
+        if (last_connector == TOK_AND || last_connector == TOK_OR) {
+            set_error(error,
+                "syntax error: conditional operator needs a following pipeline");
+            free_pipeline(head);
             return NULL;
         }
-    } else
-        append_command(pipeline, cmd);
-    return pipeline;
+        if (last_connector == TOK_SEQ && tail)
+            tail->next_op = CONN_NONE;
+        return head;
+    }
+    append_pipeline(&head, &tail, pipeline);
+    return head;
 }
 
 static void free_redirs(t_redir *redir) {
