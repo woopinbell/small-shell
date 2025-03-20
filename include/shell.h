@@ -58,6 +58,11 @@ typedef struct s_pipeline {
     struct s_pipeline   *next;
 }   t_pipeline;
 
+typedef struct s_sequence {
+    t_pipeline  *pipelines;
+    size_t      pipeline_count;
+}   t_sequence;
+
 typedef struct s_env {
     char            *key;
     char            *value;
@@ -87,6 +92,9 @@ t_token *tokenize_line(const char *line, char **error);
 void    free_tokens(t_token *tokens);
 t_pipeline  *parse_tokens(t_token *tokens, char **error);
 void    free_pipeline(t_pipeline *pipeline);
+void    shell_sequence_init(t_sequence *sequence);
+void    shell_sequence_free(t_sequence *sequence);
+int     shell_parse_line(const char *line, t_sequence *sequence, char **error);
 t_env   *env_from_environ(char **envp);
 void    env_free(t_env *env);
 const char  *env_get(t_env *env, const char *key);
