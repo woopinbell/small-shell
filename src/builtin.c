@@ -15,6 +15,7 @@ int builtin_is_known(const char *name)
         "pwd",
         "cd",
         "env",
+        "export",
         NULL
     };
     size_t i;
@@ -147,6 +148,71 @@ static int builtin_env(t_shell *shell, char **argv)
     return ferror(stdout) ? 1 : 0;
 }
 
+static int split_assignment(const char *arg, char **key, const char **value)
+{
+    size_t len;
+
+    len = 0;
+    while (arg[len] != '\0' && arg[len] != '=')
+        len++;
+    *key = shell_strndup(arg, len);
+    if (*key == NULL)
+        return 1;
+    *value = arg[len] == '=' ? arg + len + 1 : NULL;
+    return 0;
+}
+
+static int builtin_export(t_shell *shell, char **argv)
+{
+    size_t i;
+    int status;
+
+    if (argv[1] == NULL) {
+        env_print(shell->env, 1);
+        return ferror(stdout) ? 1 : 0;
+    }
+    status = 0;
+    for (i = 1; argv[i] != NULL; i++) {
+        char *key;
+        const char *value;
+
+        key = NULL;
+        value = NULL;
+        if (split_assignment(argv[i], &key, &value) != 0) {
+            fprintf(stderr, "small-shell: export: allocation failure\n");
+            return 1;
+        }
+        if (!sh_is_name_start((unsigned char)key[0])) {
+            fprintf(stderr, "small-shell: export: `%s': not a valid identifier\n", argv[i]);
+            free(key);
+            status = 1;
+            continue;
+        }
+        {
+            size_t j;
+
+            for (j = 1; key[j] != '\0'; j++) {
+                if (!sh_is_name_char((unsigned char)key[j])) {
+                    fprintf(stderr, "small-shell: export: `%s': not a valid identifier\n", argv[i]);
+                    free(key);
+                    key = NULL;
+                    status = 1;
+                    break;
+                }
+            }
+        }
+        if (key == NULL)
+            continue;
+        if (env_set(&shell->env, key, value, 1) != 0) {
+            fprintf(stderr, "small-shell: export: allocation failure\n");
+            free(key);
+            return 1;
+        }
+        free(key);
+    }
+    return status;
+}
+
 int builtin_run(t_shell *shell, char **argv)
 {
     if (shell == NULL || argv == NULL || argv[0] == NULL)
@@ -159,5 +225,7 @@ int builtin_run(t_shell *shell, char **argv)
         return builtin_cd(shell, argv);
     if (strcmp(argv[0], "env") == 0)
         return builtin_env(shell, argv);
+    if (strcmp(argv[0], "export") == 0)
+        return builtin_export(shell, argv);
     return 127;
 }
