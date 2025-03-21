@@ -14,6 +14,7 @@ int builtin_is_known(const char *name)
         "echo",
         "pwd",
         "cd",
+        "env",
         NULL
     };
     size_t i;
@@ -136,6 +137,16 @@ static int builtin_cd(t_shell *shell, char **argv)
     return ferror(stdout) ? 1 : 0;
 }
 
+static int builtin_env(t_shell *shell, char **argv)
+{
+    if (argv[1] != NULL) {
+        fprintf(stderr, "small-shell: env: arguments are not supported\n");
+        return 1;
+    }
+    env_print(shell->env, 0);
+    return ferror(stdout) ? 1 : 0;
+}
+
 int builtin_run(t_shell *shell, char **argv)
 {
     if (shell == NULL || argv == NULL || argv[0] == NULL)
@@ -146,5 +157,7 @@ int builtin_run(t_shell *shell, char **argv)
         return builtin_pwd();
     if (strcmp(argv[0], "cd") == 0)
         return builtin_cd(shell, argv);
+    if (strcmp(argv[0], "env") == 0)
+        return builtin_env(shell, argv);
     return 127;
 }
