@@ -17,6 +17,7 @@ int builtin_is_known(const char *name)
         "env",
         "export",
         "unset",
+        "exit",
         NULL
     };
     size_t i;
@@ -58,6 +59,7 @@ static int builtin_echo(char **argv)
         newline = 0;
         i++;
     }
+
     while (argv[i] != NULL) {
         fputs(argv[i], stdout);
         if (argv[i + 1] != NULL)
@@ -104,6 +106,7 @@ static int builtin_cd(t_shell *shell, char **argv)
         fprintf(stderr, "small-shell: cd: too many arguments\n");
         return 1;
     }
+
     print_target = 0;
     if (argv[1] == NULL) {
         target = env_get(shell->env, "HOME");
@@ -121,6 +124,7 @@ static int builtin_cd(t_shell *shell, char **argv)
     } else {
         target = argv[1];
     }
+
     old_pwd = getcwd(NULL, 0);
     if (chdir(target) != 0) {
         fprintf(stderr, "small-shell: cd: %s: %s\n", target, strerror(errno));
@@ -172,6 +176,7 @@ static int builtin_export(t_shell *shell, char **argv)
         env_print(shell->env, 1);
         return ferror(stdout) ? 1 : 0;
     }
+
     status = 0;
     for (i = 1; argv[i] != NULL; i++) {
         char *key;
@@ -223,6 +228,42 @@ static int builtin_unset(t_shell *shell, char **argv)
     return 0;
 }
 
+static int parse_exit_status(const char *s, int *status)
+{
+    char *end;
+    long value;
+
+    errno = 0;
+    value = strtol(s, &end, 10);
+    if (s == end || *end != '\0' || errno == ERANGE)
+        return 0;
+    *status = (unsigned char)value;
+    return 1;
+}
+
+static int builtin_exit(t_shell *shell, char **argv)
+{
+    int status;
+
+    if (argv[1] == NULL) {
+        shell->running = 0;
+        return shell->last_status;
+    }
+    if (!parse_exit_status(argv[1], &status)) {
+        fprintf(stderr, "small-shell: exit: %s: numeric argument required\n", argv[1]);
+        shell->last_status = 2;
+        shell->running = 0;
+        return 2;
+    }
+    if (argv[2] != NULL) {
+        fprintf(stderr, "small-shell: exit: too many arguments\n");
+        return 1;
+    }
+    shell->last_status = status;
+    shell->running = 0;
+    return status;
+}
+
 int builtin_run(t_shell *shell, char **argv)
 {
     if (shell == NULL || argv == NULL || argv[0] == NULL)
@@ -239,5 +280,7 @@ int builtin_run(t_shell *shell, char **argv)
         return builtin_export(shell, argv);
     if (strcmp(argv[0], "unset") == 0)
         return builtin_unset(shell, argv);
+    if (strcmp(argv[0], "exit") == 0)
+        return builtin_exit(shell, argv);
     return 127;
 }
