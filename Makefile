@@ -12,7 +12,8 @@ SRCS := \
 	src/parser.c \
 	src/expand.c \
 	src/env.c \
-	src/utils.c
+	src/utils.c \
+	src/builtin.c
 OBJS := $(SRCS:.c=.o)
 
 ifeq ($(USE_READLINE),1)

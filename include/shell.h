@@ -127,5 +127,8 @@ int     shell_env_unset(t_env *env, const char *key);
 int     shell_env_is_valid_name(const char *key);
 char    **shell_env_export_list(t_env *env);
 char    **shell_env_to_envp(t_env *env);
+int     builtin_is_parent(const char *name);
+int     builtin_is_known(const char *name);
+int     builtin_run(t_shell *shell, char **argv);
 
 #endif
