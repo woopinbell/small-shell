@@ -12,6 +12,7 @@ int builtin_is_known(const char *name)
 {
     static const char *builtins[] = {
         "echo",
+        "pwd",
         NULL
     };
     size_t i;
@@ -64,11 +65,27 @@ static int builtin_echo(char **argv)
     return ferror(stdout) ? 1 : 0;
 }
 
+static int builtin_pwd(void)
+{
+    char *cwd;
+
+    cwd = getcwd(NULL, 0);
+    if (cwd == NULL) {
+        fprintf(stderr, "small-shell: pwd: %s\n", strerror(errno));
+        return 1;
+    }
+    printf("%s\n", cwd);
+    free(cwd);
+    return ferror(stdout) ? 1 : 0;
+}
+
 int builtin_run(t_shell *shell, char **argv)
 {
     if (shell == NULL || argv == NULL || argv[0] == NULL)
         return 0;
     if (strcmp(argv[0], "echo") == 0)
         return builtin_echo(argv);
+    if (strcmp(argv[0], "pwd") == 0)
+        return builtin_pwd();
     return 127;
 }
