@@ -79,3 +79,54 @@ int shell_dequote_word(const char *word, char **out, char **error) {
     *out = dequote_word(word);
     return 0;
 }
+
+static int expand_words(t_shell *shell, char ***words) {
+    size_t  i;
+    char    *expanded;
+
+    i = 0;
+    while (*words && (*words)[i]) {
+        expanded = expand_word(shell, (*words)[i]);
+        free((*words)[i]);
+        (*words)[i] = expanded;
+        i++;
+    }
+    return 0;
+}
+
+int expand_pipeline(t_shell *shell, t_pipeline *pipeline) {
+    t_command   *cmd;
+    t_redir     *redir;
+    char        *expanded;
+
+    while (pipeline) {
+        cmd = pipeline->commands;
+        while (cmd) {
+            expand_words(shell, &cmd->argv);
+            redir = cmd->redirs;
+            while (redir) {
+                expanded = expand_word(shell, redir->target);
+                free(redir->target);
+                redir->target = expanded;
+                redir = redir->next;
+            }
+            cmd = cmd->next;
+        }
+        pipeline = pipeline->next;
+    }
+    return 0;
+}
+
+int shell_expand_sequence(t_sequence *sequence, const t_env *env,
+        int last_status, char **error) {
+    t_shell shell;
+
+    if (error)
+        *error = NULL;
+    if (!sequence)
+        return 0;
+    shell.env = (t_env *)env;
+    shell.last_status = last_status;
+    shell.running = 1;
+    return expand_pipeline(&shell, sequence->pipelines);
+}
