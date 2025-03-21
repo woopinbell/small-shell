@@ -13,6 +13,7 @@ int builtin_is_known(const char *name)
     static const char *builtins[] = {
         "echo",
         "pwd",
+        "cd",
         NULL
     };
     size_t i;
@@ -79,6 +80,62 @@ static int builtin_pwd(void)
     return ferror(stdout) ? 1 : 0;
 }
 
+static size_t argv_count(char **argv)
+{
+    size_t count;
+
+    count = 0;
+    while (argv != NULL && argv[count] != NULL)
+        count++;
+    return count;
+}
+
+static int builtin_cd(t_shell *shell, char **argv)
+{
+    const char *target;
+    char *old_pwd;
+    char *new_pwd;
+    int print_target;
+
+    if (argv_count(argv) > 2) {
+        fprintf(stderr, "small-shell: cd: too many arguments\n");
+        return 1;
+    }
+    print_target = 0;
+    if (argv[1] == NULL) {
+        target = env_get(shell->env, "HOME");
+        if (target == NULL || target[0] == '\0') {
+            fprintf(stderr, "small-shell: cd: HOME not set\n");
+            return 1;
+        }
+    } else if (strcmp(argv[1], "-") == 0) {
+        target = env_get(shell->env, "OLDPWD");
+        if (target == NULL || target[0] == '\0') {
+            fprintf(stderr, "small-shell: cd: OLDPWD not set\n");
+            return 1;
+        }
+        print_target = 1;
+    } else {
+        target = argv[1];
+    }
+    old_pwd = getcwd(NULL, 0);
+    if (chdir(target) != 0) {
+        fprintf(stderr, "small-shell: cd: %s: %s\n", target, strerror(errno));
+        free(old_pwd);
+        return 1;
+    }
+    new_pwd = getcwd(NULL, 0);
+    if (old_pwd != NULL)
+        (void)env_set(&shell->env, "OLDPWD", old_pwd, 1);
+    if (new_pwd != NULL)
+        (void)env_set(&shell->env, "PWD", new_pwd, 1);
+    if (print_target && new_pwd != NULL)
+        printf("%s\n", new_pwd);
+    free(old_pwd);
+    free(new_pwd);
+    return ferror(stdout) ? 1 : 0;
+}
+
 int builtin_run(t_shell *shell, char **argv)
 {
     if (shell == NULL || argv == NULL || argv[0] == NULL)
@@ -87,5 +144,7 @@ int builtin_run(t_shell *shell, char **argv)
         return builtin_echo(argv);
     if (strcmp(argv[0], "pwd") == 0)
         return builtin_pwd();
+    if (strcmp(argv[0], "cd") == 0)
+        return builtin_cd(shell, argv);
     return 127;
 }
