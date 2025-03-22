@@ -16,6 +16,7 @@ int builtin_is_known(const char *name)
         "cd",
         "env",
         "export",
+        "unset",
         NULL
     };
     size_t i;
@@ -213,6 +214,15 @@ static int builtin_export(t_shell *shell, char **argv)
     return status;
 }
 
+static int builtin_unset(t_shell *shell, char **argv)
+{
+    size_t i;
+
+    for (i = 1; argv[i] != NULL; i++)
+        (void)env_unset(&shell->env, argv[i]);
+    return 0;
+}
+
 int builtin_run(t_shell *shell, char **argv)
 {
     if (shell == NULL || argv == NULL || argv[0] == NULL)
@@ -227,5 +237,7 @@ int builtin_run(t_shell *shell, char **argv)
         return builtin_env(shell, argv);
     if (strcmp(argv[0], "export") == 0)
         return builtin_export(shell, argv);
+    if (strcmp(argv[0], "unset") == 0)
+        return builtin_unset(shell, argv);
     return 127;
 }
