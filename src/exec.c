@@ -164,23 +164,58 @@ alloc_error:
     return 1;
 }
 
-int execute_pipeline_list(t_shell *shell, t_pipeline *pipeline)
+static int expand_one_pipeline(t_shell *shell, t_pipeline *pipeline)
+{
+    t_pipeline *next;
+    int result;
+
+    next = pipeline->next;
+    pipeline->next = NULL;
+    result = expand_pipeline(shell, pipeline);
+    pipeline->next = next;
+    return result;
+}
+
+static int execute_one_pipeline(t_shell *shell, t_pipeline *pipeline, const struct exec_context *ctx)
 {
     const t_command *command;
-    struct exec_context ctx;
 
-    if (shell == NULL || pipeline == NULL || pipeline->command_count == 0)
-        return shell != NULL ? shell->last_status : 1;
-    if (pipeline->next != NULL)
+    if (pipeline == NULL || pipeline->command_count == 0)
+        return shell->last_status;
+    if (expand_one_pipeline(shell, pipeline) != 0)
         return 1;
-    if (expand_pipeline(shell, pipeline) != 0)
-        return 1;
-    ctx.shell = shell;
     command = pipeline->commands;
     if (pipeline->command_count == 1
         && (command->argc == 0 || builtin_is_parent(command->argv[0])))
-        shell->last_status = exec_run_parent_command(shell, command, &ctx);
-    else
-        shell->last_status = run_forked_pipeline(shell, pipeline, &ctx);
+        return exec_run_parent_command(shell, command, ctx);
+    return run_forked_pipeline(shell, pipeline, ctx);
+}
+
+static int execute_pipeline_list_ctx(t_shell *shell, t_pipeline *pipeline, const struct exec_context *ctx)
+{
+    t_connector previous;
+
+    previous = CONN_NONE;
+    while (pipeline != NULL && shell->running) {
+        int should_run;
+
+        should_run = 1;
+        if (previous == CONN_AND && shell->last_status != 0)
+            should_run = 0;
+        else if (previous == CONN_OR && shell->last_status == 0)
+            should_run = 0;
+        if (should_run)
+            shell->last_status = execute_one_pipeline(shell, pipeline, ctx);
+        previous = pipeline->next_op;
+        pipeline = pipeline->next;
+    }
     return shell->last_status;
+}
+
+int execute_pipeline_list(t_shell *shell, t_pipeline *pipeline)
+{
+    struct exec_context ctx;
+
+    ctx.shell = shell;
+    return execute_pipeline_list_ctx(shell, pipeline, &ctx);
 }
