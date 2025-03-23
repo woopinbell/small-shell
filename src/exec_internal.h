@@ -9,5 +9,7 @@ struct exec_context {
 
 int exec_apply_redirections(const t_command *command,
         const struct exec_context *ctx);
+int exec_run_parent_command(t_shell *shell, const t_command *command,
+        const struct exec_context *ctx);
 
 #endif
