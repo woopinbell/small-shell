@@ -13,6 +13,7 @@ SRCS := \
 	src/expand.c \
 	src/env.c \
 	src/utils.c \
+	src/redirection.c \
 	src/builtin.c
 OBJS := $(SRCS:.c=.o)
 
