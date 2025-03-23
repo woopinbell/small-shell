@@ -12,6 +12,20 @@
 
 extern char **environ;
 
+static void close_pipes(int (*pipes)[2], size_t pipe_count)
+{
+    size_t i;
+
+    if (pipes == NULL)
+        return;
+    for (i = 0; i < pipe_count; i++) {
+        if (pipes[i][0] >= 0)
+            close(pipes[i][0]);
+        if (pipes[i][1] >= 0)
+            close(pipes[i][1]);
+    }
+}
+
 static int status_from_wait(int wait_status)
 {
     if (WIFEXITED(wait_status))
@@ -21,9 +35,21 @@ static int status_from_wait(int wait_status)
     return 1;
 }
 
-static void run_child(t_shell *shell, const t_command *command,
-    const struct exec_context *ctx)
+static void child_die(const char *what)
 {
+    fprintf(stderr, "small-shell: %s: %s\n", what, strerror(errno));
+    _exit(1);
+}
+
+static void run_child(t_shell *shell, const t_pipeline *pipeline, const t_command *command,
+    const struct exec_context *ctx, int (*pipes)[2], size_t pipe_count, size_t index)
+{
+    if (index > 0 && dup2(pipes[index - 1][0], STDIN_FILENO) < 0)
+        child_die("dup2");
+    if (index + 1 < pipeline->command_count && dup2(pipes[index][1], STDOUT_FILENO) < 0)
+        child_die("dup2");
+    close_pipes(pipes, pipe_count);
+
     if (exec_apply_redirections(command, ctx) != 0)
         _exit(1);
     if (command->argc == 0)
@@ -36,6 +62,7 @@ static void run_child(t_shell *shell, const t_command *command,
         fflush(stderr);
         _exit(status & 0xff);
     }
+
     {
         char **envp;
 
@@ -50,8 +77,7 @@ static void run_child(t_shell *shell, const t_command *command,
             int err;
 
             err = errno;
-            fprintf(stderr, "small-shell: %s: %s\n", command->argv[0],
-                strerror(err));
+            fprintf(stderr, "small-shell: %s: %s\n", command->argv[0], strerror(err));
             sh_free_words(envp);
             if (err == ENOENT)
                 _exit(127);
@@ -60,23 +86,45 @@ static void run_child(t_shell *shell, const t_command *command,
     }
 }
 
-static int run_forked_commands(t_shell *shell, const t_pipeline *pipeline,
-    const struct exec_context *ctx)
+static int run_forked_pipeline(t_shell *shell, const t_pipeline *pipeline, const struct exec_context *ctx)
 {
-    pid_t           *pids;
+    size_t pipe_count;
+    int (*pipes)[2];
+    pid_t *pids;
     const t_command *command;
-    size_t          i;
-    size_t          spawned;
-    int             result;
+    size_t i;
+    size_t spawned;
+    int result;
 
-    pids = (pid_t *)calloc(pipeline->command_count, sizeof(pid_t));
-    if (pids == NULL) {
-        fprintf(stderr, "small-shell: allocation failure\n");
-        return 1;
-    }
-    command = pipeline->commands;
+    pipe_count = pipeline->command_count - 1;
+    pipes = NULL;
+    pids = NULL;
     spawned = 0;
     result = 1;
+
+    if (pipe_count > 0) {
+        pipes = (int (*)[2])malloc(sizeof(int[2]) * pipe_count);
+        if (pipes == NULL)
+            goto alloc_error;
+        for (i = 0; i < pipe_count; i++) {
+            pipes[i][0] = -1;
+            pipes[i][1] = -1;
+        }
+        for (i = 0; i < pipe_count; i++) {
+            if (pipe(pipes[i]) < 0) {
+                fprintf(stderr, "small-shell: pipe: %s\n", strerror(errno));
+                close_pipes(pipes, pipe_count);
+                free(pipes);
+                return 1;
+            }
+        }
+    }
+
+    pids = (pid_t *)calloc(pipeline->command_count, sizeof(pid_t));
+    if (pids == NULL)
+        goto alloc_error;
+
+    command = pipeline->commands;
     for (i = 0; i < pipeline->command_count && command != NULL; i++) {
         pid_t pid;
 
@@ -86,11 +134,13 @@ static int run_forked_commands(t_shell *shell, const t_pipeline *pipeline,
             break;
         }
         if (pid == 0)
-            run_child(shell, command, ctx);
+            run_child(shell, pipeline, command, ctx, pipes, pipe_count, i);
         pids[i] = pid;
         spawned++;
         command = command->next;
     }
+
+    close_pipes(pipes, pipe_count);
     for (i = 0; i < spawned; i++) {
         int wait_status;
         pid_t waited;
@@ -101,8 +151,17 @@ static int run_forked_commands(t_shell *shell, const t_pipeline *pipeline,
         if (waited == pids[i] && i + 1 == pipeline->command_count)
             result = status_from_wait(wait_status);
     }
+
     free(pids);
+    free(pipes);
     return spawned == pipeline->command_count ? result : 1;
+
+alloc_error:
+    fprintf(stderr, "small-shell: allocation failure\n");
+    close_pipes(pipes, pipe_count);
+    free(pipes);
+    free(pids);
+    return 1;
 }
 
 int execute_pipeline_list(t_shell *shell, t_pipeline *pipeline)
@@ -112,15 +171,16 @@ int execute_pipeline_list(t_shell *shell, t_pipeline *pipeline)
 
     if (shell == NULL || pipeline == NULL || pipeline->command_count == 0)
         return shell != NULL ? shell->last_status : 1;
-    if (pipeline->next != NULL || pipeline->command_count != 1)
+    if (pipeline->next != NULL)
         return 1;
     if (expand_pipeline(shell, pipeline) != 0)
         return 1;
     ctx.shell = shell;
     command = pipeline->commands;
-    if (command->argc == 0 || builtin_is_parent(command->argv[0]))
+    if (pipeline->command_count == 1
+        && (command->argc == 0 || builtin_is_parent(command->argv[0])))
         shell->last_status = exec_run_parent_command(shell, command, &ctx);
     else
-        shell->last_status = run_forked_commands(shell, pipeline, &ctx);
+        shell->last_status = run_forked_pipeline(shell, pipeline, &ctx);
     return shell->last_status;
 }
