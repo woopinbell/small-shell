@@ -130,5 +130,6 @@ char    **shell_env_to_envp(t_env *env);
 int     builtin_is_parent(const char *name);
 int     builtin_is_known(const char *name);
 int     builtin_run(t_shell *shell, char **argv);
+int     execute_pipeline_list(t_shell *shell, t_pipeline *pipeline);
 
 #endif
