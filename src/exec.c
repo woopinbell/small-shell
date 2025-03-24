@@ -4,6 +4,7 @@
 
 #include <errno.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <sys/types.h>
 #include <sys/wait.h>
@@ -59,26 +60,49 @@ static void run_child(t_shell *shell, const t_command *command,
     }
 }
 
-static int run_single_command(t_shell *shell, const t_command *command,
+static int run_forked_commands(t_shell *shell, const t_pipeline *pipeline,
     const struct exec_context *ctx)
 {
-    pid_t pid;
-    pid_t waited;
-    int wait_status;
+    pid_t           *pids;
+    const t_command *command;
+    size_t          i;
+    size_t          spawned;
+    int             result;
 
-    pid = fork();
-    if (pid < 0) {
-        fprintf(stderr, "small-shell: fork: %s\n", strerror(errno));
+    pids = (pid_t *)calloc(pipeline->command_count, sizeof(pid_t));
+    if (pids == NULL) {
+        fprintf(stderr, "small-shell: allocation failure\n");
         return 1;
     }
-    if (pid == 0)
-        run_child(shell, command, ctx);
-    do {
-        waited = waitpid(pid, &wait_status, 0);
-    } while (waited < 0 && errno == EINTR);
-    if (waited != pid)
-        return 1;
-    return status_from_wait(wait_status);
+    command = pipeline->commands;
+    spawned = 0;
+    result = 1;
+    for (i = 0; i < pipeline->command_count && command != NULL; i++) {
+        pid_t pid;
+
+        pid = fork();
+        if (pid < 0) {
+            fprintf(stderr, "small-shell: fork: %s\n", strerror(errno));
+            break;
+        }
+        if (pid == 0)
+            run_child(shell, command, ctx);
+        pids[i] = pid;
+        spawned++;
+        command = command->next;
+    }
+    for (i = 0; i < spawned; i++) {
+        int wait_status;
+        pid_t waited;
+
+        do {
+            waited = waitpid(pids[i], &wait_status, 0);
+        } while (waited < 0 && errno == EINTR);
+        if (waited == pids[i] && i + 1 == pipeline->command_count)
+            result = status_from_wait(wait_status);
+    }
+    free(pids);
+    return spawned == pipeline->command_count ? result : 1;
 }
 
 int execute_pipeline_list(t_shell *shell, t_pipeline *pipeline)
@@ -97,6 +121,6 @@ int execute_pipeline_list(t_shell *shell, t_pipeline *pipeline)
     if (command->argc == 0 || builtin_is_parent(command->argv[0]))
         shell->last_status = exec_run_parent_command(shell, command, &ctx);
     else
-        shell->last_status = run_single_command(shell, command, &ctx);
+        shell->last_status = run_forked_commands(shell, pipeline, &ctx);
     return shell->last_status;
 }
