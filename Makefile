@@ -14,6 +14,7 @@ SRCS := \
 	src/env.c \
 	src/utils.c \
 	src/exec.c \
+	src/heredoc.c \
 	src/redirection.c \
 	src/builtin.c
 OBJS := $(SRCS:.c=.o)
