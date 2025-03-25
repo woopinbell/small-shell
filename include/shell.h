@@ -131,5 +131,6 @@ int     builtin_is_parent(const char *name);
 int     builtin_is_known(const char *name);
 int     builtin_run(t_shell *shell, char **argv);
 int     execute_pipeline_list(t_shell *shell, t_pipeline *pipeline);
+int     shell_process_line(t_shell *shell, const char *line);
 
 #endif

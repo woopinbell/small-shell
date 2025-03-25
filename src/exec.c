@@ -219,3 +219,34 @@ int execute_pipeline_list(t_shell *shell, t_pipeline *pipeline)
     ctx.shell = shell;
     return execute_pipeline_list_ctx(shell, pipeline, &ctx);
 }
+
+int shell_process_line(t_shell *shell, const char *line)
+{
+    t_token *tokens;
+    t_pipeline *pipelines;
+    char *error;
+
+    if (shell == NULL || line == NULL || line[0] == '\0')
+        return shell != NULL ? shell->last_status : 1;
+    error = NULL;
+    tokens = tokenize_line(line, &error);
+    if (error != NULL) {
+        fprintf(stderr, "small-shell: %s\n", error);
+        free(error);
+        shell->last_status = 258;
+        return shell->last_status;
+    }
+    pipelines = parse_tokens(tokens, &error);
+    free_tokens(tokens);
+    if (error != NULL) {
+        fprintf(stderr, "small-shell: %s\n", error);
+        free(error);
+        shell->last_status = 258;
+        return shell->last_status;
+    }
+    if (pipelines == NULL)
+        return shell->last_status;
+    (void)execute_pipeline_list(shell, pipelines);
+    free_pipeline(pipelines);
+    return shell->last_status;
+}

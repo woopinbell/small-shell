@@ -78,6 +78,7 @@ void shell_loop(t_shell *shell)
         line = shell_read_line("small-shell$ ", interactive);
         if (line == NULL)
             break;
+        (void)shell_process_line(shell, line);
         free(line);
     }
     if (interactive && shell->running)
