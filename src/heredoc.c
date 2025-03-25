@@ -85,3 +85,44 @@ char *dequote_runtime_word(const char *word)
     }
     return out.data;
 }
+
+int add_heredoc_entry(struct exec_context *ctx, const t_redir *redir,
+    char *body)
+{
+    struct heredoc_entry *entry;
+
+    entry = (struct heredoc_entry *)malloc(sizeof(*entry));
+    if (entry == NULL)
+        return 1;
+    entry->redir = redir;
+    entry->body = body;
+    entry->next = ctx->heredocs;
+    ctx->heredocs = entry;
+    return 0;
+}
+
+void exec_heredoc_entries_free(struct heredoc_entry *entry)
+{
+    struct heredoc_entry *next;
+
+    while (entry != NULL) {
+        next = entry->next;
+        free(entry->body);
+        free(entry);
+        entry = next;
+    }
+}
+
+const char *exec_find_heredoc_body(const struct exec_context *ctx,
+    const t_redir *redir)
+{
+    struct heredoc_entry *entry;
+
+    entry = ctx->heredocs;
+    while (entry != NULL) {
+        if (entry->redir == redir)
+            return entry->body;
+        entry = entry->next;
+    }
+    return "";
+}
