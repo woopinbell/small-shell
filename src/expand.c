@@ -105,7 +105,10 @@ int expand_pipeline(t_shell *shell, t_pipeline *pipeline) {
             expand_words(shell, &cmd->argv);
             redir = cmd->redirs;
             while (redir) {
-                expanded = expand_word(shell, redir->target);
+                if (redir->type == REDIR_HEREDOC)
+                    expanded = dequote_word(redir->target);
+                else
+                    expanded = expand_word(shell, redir->target);
                 free(redir->target);
                 redir->target = expanded;
                 redir = redir->next;

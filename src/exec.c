@@ -217,6 +217,7 @@ int execute_pipeline_list(t_shell *shell, t_pipeline *pipeline)
     struct exec_context ctx;
 
     ctx.shell = shell;
+    ctx.heredocs = NULL;
     return execute_pipeline_list_ctx(shell, pipeline, &ctx);
 }
 
@@ -224,10 +225,12 @@ int shell_process_line(t_shell *shell, const char *line)
 {
     t_token *tokens;
     t_pipeline *pipelines;
+    struct exec_context ctx;
     char *error;
 
     if (shell == NULL || line == NULL || line[0] == '\0')
         return shell != NULL ? shell->last_status : 1;
+
     error = NULL;
     tokens = tokenize_line(line, &error);
     if (error != NULL) {
@@ -236,6 +239,7 @@ int shell_process_line(t_shell *shell, const char *line)
         shell->last_status = 258;
         return shell->last_status;
     }
+
     pipelines = parse_tokens(tokens, &error);
     free_tokens(tokens);
     if (error != NULL) {
@@ -246,7 +250,18 @@ int shell_process_line(t_shell *shell, const char *line)
     }
     if (pipelines == NULL)
         return shell->last_status;
-    (void)execute_pipeline_list(shell, pipelines);
+
+    ctx.shell = shell;
+    ctx.heredocs = NULL;
+    if (exec_prepare_heredocs(&ctx, pipelines) != 0) {
+        exec_heredoc_entries_free(ctx.heredocs);
+        free_pipeline(pipelines);
+        shell->last_status = 1;
+        return shell->last_status;
+    }
+
+    (void)execute_pipeline_list_ctx(shell, pipelines, &ctx);
+    exec_heredoc_entries_free(ctx.heredocs);
     free_pipeline(pipelines);
     return shell->last_status;
 }

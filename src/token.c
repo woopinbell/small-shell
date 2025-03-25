@@ -112,13 +112,12 @@ t_token *tokenize_line(const char *line, char **error) {
             i++;
         } else if (line[i] == '<') {
             if (line[i + 1] == '<') {
-                if (error)
-                    *error = sh_strdup("syntax error: unsupported operator '<<'");
-                free_tokens(head);
-                return NULL;
+                push_token(&head, &tail, new_token(TOK_HEREDOC, sh_strdup("<<"), i));
+                i += 2;
+            } else {
+                push_token(&head, &tail, new_token(TOK_REDIR_IN, sh_strdup("<"), i));
+                i++;
             }
-            push_token(&head, &tail, new_token(TOK_REDIR_IN, sh_strdup("<"), i));
-            i++;
         } else if (line[i] == '>') {
             if (line[i + 1] == '>') {
                 push_token(&head, &tail, new_token(TOK_REDIR_APPEND, sh_strdup(">>"), i));

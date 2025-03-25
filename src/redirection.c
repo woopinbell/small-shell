@@ -13,7 +13,6 @@ int exec_apply_redirections(const t_command *command,
 {
     const t_redir *redir;
 
-    (void)ctx;
     redir = command->redirs;
     while (redir != NULL) {
         int fd;
@@ -52,6 +51,31 @@ int exec_apply_redirections(const t_command *command,
                 return 1;
             }
             close(fd);
+        } else if (redir->type == REDIR_HEREDOC) {
+            FILE        *tmp;
+            const char  *body;
+
+            tmp = tmpfile();
+            if (tmp == NULL) {
+                fprintf(stderr, "small-shell: heredoc: %s\n",
+                    strerror(errno));
+                return 1;
+            }
+            body = exec_find_heredoc_body(ctx, redir);
+            if (body != NULL && fputs(body, tmp) == EOF) {
+                fprintf(stderr, "small-shell: heredoc: %s\n",
+                    strerror(errno));
+                fclose(tmp);
+                return 1;
+            }
+            fflush(tmp);
+            rewind(tmp);
+            if (dup2(fileno(tmp), STDIN_FILENO) < 0) {
+                fprintf(stderr, "small-shell: dup2: %s\n", strerror(errno));
+                fclose(tmp);
+                return 1;
+            }
+            fclose(tmp);
         }
         redir = redir->next;
     }
