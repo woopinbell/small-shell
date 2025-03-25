@@ -118,6 +118,18 @@ beta
 " \
 0
 
+run_case quoted_heredoc \
+"export HD=beta
+cat <<'EOF'
+alpha
+\$HD
+EOF
+" \
+"alpha
+\$HD
+" \
+0
+
 run_case syntax_error_status \
 "echo |
 echo \$?
