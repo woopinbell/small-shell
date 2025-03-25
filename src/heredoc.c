@@ -60,7 +60,22 @@ static int sb_push(struct strbuf *buf, char ch)
     return 0;
 }
 
-char *dequote_runtime_word(const char *word)
+static int sb_append(struct strbuf *buf, const char *text)
+{
+    size_t len;
+
+    if (text == NULL)
+        return 0;
+    len = strlen(text);
+    if (sb_reserve(buf, len) != 0)
+        return 1;
+    memcpy(buf->data + buf->len, text, len);
+    buf->len += len;
+    buf->data[buf->len] = '\0';
+    return 0;
+}
+
+static char *dequote_runtime_word(const char *word)
 {
     struct strbuf   out;
     size_t          i;
@@ -86,7 +101,14 @@ char *dequote_runtime_word(const char *word)
     return out.data;
 }
 
-int add_heredoc_entry(struct exec_context *ctx, const t_redir *redir,
+static int append_literal_body_line(struct strbuf *body, const char *line)
+{
+    if (sb_append(body, line) != 0)
+        return 1;
+    return sb_push(body, '\n');
+}
+
+static int add_heredoc_entry(struct exec_context *ctx, const t_redir *redir,
     char *body)
 {
     struct heredoc_entry *entry;
@@ -125,4 +147,75 @@ const char *exec_find_heredoc_body(const struct exec_context *ctx,
         entry = entry->next;
     }
     return "";
+}
+
+static int read_heredoc(struct exec_context *ctx, t_redir *redir)
+{
+    struct strbuf   body;
+    char            *delimiter;
+    int             interactive;
+
+    delimiter = dequote_runtime_word(redir->target);
+    if (delimiter == NULL)
+        return 1;
+    free(redir->target);
+    redir->target = delimiter;
+    if (sb_init(&body) != 0)
+        return 1;
+    interactive = isatty(STDIN_FILENO) && isatty(STDERR_FILENO);
+    for (;;) {
+        char *line;
+
+        line = shell_read_line("> ", interactive);
+        if (line == NULL) {
+            fprintf(stderr,
+                "small-shell: warning: here-document delimited by end-of-file (wanted `%s')\n",
+                redir->target);
+            break;
+        }
+        if (strcmp(line, redir->target) == 0) {
+            free(line);
+            break;
+        }
+        if (append_literal_body_line(&body, line) != 0) {
+            free(line);
+            sb_free(&body);
+            return 1;
+        }
+        free(line);
+    }
+    if (add_heredoc_entry(ctx, redir, body.data) != 0) {
+        sb_free(&body);
+        return 1;
+    }
+    return 0;
+}
+
+int exec_prepare_heredocs(struct exec_context *ctx, t_pipeline *pipelines)
+{
+    t_pipeline *pipeline;
+
+    pipeline = pipelines;
+    while (pipeline != NULL) {
+        t_command *command;
+
+        command = pipeline->commands;
+        while (command != NULL) {
+            t_redir *redir;
+
+            redir = command->redirs;
+            while (redir != NULL) {
+                if (redir->type == REDIR_HEREDOC
+                    && read_heredoc(ctx, redir) != 0) {
+                    fprintf(stderr,
+                        "small-shell: heredoc: allocation failure\n");
+                    return 1;
+                }
+                redir = redir->next;
+            }
+            command = command->next;
+        }
+        pipeline = pipeline->next;
+    }
+    return 0;
 }
