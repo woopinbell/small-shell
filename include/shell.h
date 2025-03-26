@@ -24,12 +24,14 @@ typedef struct s_token {
 typedef enum e_redir_type {
     REDIR_IN,
     REDIR_OUT,
-    REDIR_APPEND
+    REDIR_APPEND,
+    REDIR_HEREDOC
 }   t_redir_type;
 
 # define SHELL_REDIR_IN REDIR_IN
 # define SHELL_REDIR_OUT REDIR_OUT
 # define SHELL_REDIR_APPEND REDIR_APPEND
+# define SHELL_REDIR_HEREDOC REDIR_HEREDOC
 
 typedef struct s_redir {
     t_redir_type    type;

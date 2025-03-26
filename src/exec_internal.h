@@ -14,6 +14,7 @@ struct exec_context {
     struct heredoc_entry    *heredocs;
 };
 
+int exec_prepare_heredocs(struct exec_context *ctx, t_pipeline *pipelines);
 void exec_heredoc_entries_free(struct heredoc_entry *entry);
 const char *exec_find_heredoc_body(const struct exec_context *ctx,
         const t_redir *redir);
