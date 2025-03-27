@@ -91,7 +91,7 @@ static void append_pipeline(t_pipeline **head, t_pipeline **tail, t_pipeline *no
 
 static int token_is_redir(t_token_type type) {
     return (type == TOK_REDIR_IN || type == TOK_REDIR_OUT
-        || type == TOK_REDIR_APPEND);
+        || type == TOK_REDIR_APPEND || type == TOK_HEREDOC);
 }
 
 static t_redir_type redir_type(t_token_type type) {
@@ -99,6 +99,8 @@ static t_redir_type redir_type(t_token_type type) {
         return REDIR_OUT;
     if (type == TOK_REDIR_APPEND)
         return REDIR_APPEND;
+    if (type == TOK_HEREDOC)
+        return REDIR_HEREDOC;
     return REDIR_IN;
 }
 
@@ -265,25 +267,28 @@ void shell_sequence_free(t_sequence *sequence) {
     if (!sequence)
         return;
     free_pipeline(sequence->pipelines);
-    shell_sequence_init(sequence);
+    sequence->pipelines = NULL;
+    sequence->pipeline_count = 0;
 }
 
 int shell_parse_line(const char *line, t_sequence *sequence, char **error) {
     t_token *tokens;
 
-    if (!sequence)
+    if (!sequence) {
+        if (error)
+            *error = sh_strdup("parse output is null");
         return 1;
+    }
     shell_sequence_init(sequence);
     tokens = tokenize_line(line, error);
-    if (!tokens) {
-        if (error && *error)
-            return 1;
-        return 0;
-    }
+    if (error && *error)
+        return 1;
     sequence->pipelines = parse_tokens(tokens, error);
     free_tokens(tokens);
-    if (!sequence->pipelines && error && *error)
+    if (error && *error) {
+        shell_sequence_free(sequence);
         return 1;
+    }
     sequence->pipeline_count = count_pipelines(sequence->pipelines);
     return 0;
 }
