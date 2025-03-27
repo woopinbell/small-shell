@@ -214,4 +214,33 @@ echo \$?
 " \
 0
 
+run_case conditional_connectors \
+"false && echo skipped
+false || echo recovered
+true && echo continued
+" \
+"recovered
+continued
+" \
+0
+
+run_case malformed_conditionals \
+"&& echo never
+echo \$?
+echo never ||
+echo \$?
+" \
+"258
+258
+" \
+0
+
+run_case unsupported_operator \
+"echo never & echo never
+echo \$?
+" \
+"258
+" \
+0
+
 echo "ok - smoke"
