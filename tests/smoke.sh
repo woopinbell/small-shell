@@ -196,4 +196,22 @@ pipe
 " \
 0
 
+printf '#!/bin/sh\necho should-not-run\n' >"$TMP/not-executable"
+chmod 0644 "$TMP/not-executable"
+run_case cannot_execute_status \
+"$TMP/not-executable
+echo \$?
+" \
+"126
+" \
+0
+
+run_case signal_exit_status \
+"/bin/sh -c 'kill -TERM \$\$'
+echo \$?
+" \
+"143
+" \
+0
+
 echo "ok - smoke"
