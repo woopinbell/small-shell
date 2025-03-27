@@ -45,13 +45,15 @@ static void add_arg(t_command *cmd, const char *text) {
     cmd->argc = n + 1;
 }
 
-static void add_redir(t_command *cmd, t_redir_type type, const char *target) {
+static void add_redir(t_command *cmd, t_redir_type type, const char *target,
+        int target_quoted) {
     t_redir *node;
     t_redir *tail;
 
     node = (t_redir *)sh_xcalloc(1, sizeof(t_redir));
     node->type = type;
     node->target = sh_strdup(target);
+    node->heredoc_quoted = (type == REDIR_HEREDOC && target_quoted);
     if (!cmd->redirs) {
         cmd->redirs = node;
         return;
@@ -142,7 +144,8 @@ t_pipeline *parse_tokens(t_token *tokens, char **error) {
                 free_pipeline(head);
                 return NULL;
             }
-            add_redir(cmd, redir_type(cur->type), cur->next->text);
+            add_redir(cmd, redir_type(cur->type), cur->next->text,
+                cur->next->quoted);
             cur = cur->next;
             after_pipe = 0;
         } else if (cur->type == TOK_PIPE) {

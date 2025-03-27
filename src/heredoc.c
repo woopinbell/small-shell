@@ -138,19 +138,6 @@ static int expand_heredoc_body_line(t_shell *shell, const char *line,
     return 0;
 }
 
-static int word_has_literal_mark(const char *word)
-{
-    size_t i;
-
-    i = 0;
-    while (word != NULL && word[i] != '\0') {
-        if (word[i] == LITERAL_MARK)
-            return 1;
-        i++;
-    }
-    return 0;
-}
-
 static char *dequote_runtime_word(const char *word)
 {
     struct strbuf   out;
@@ -237,7 +224,7 @@ static int read_heredoc(struct exec_context *ctx, t_redir *redir)
     int             quoted;
     int             interactive;
 
-    quoted = word_has_literal_mark(redir->target);
+    quoted = redir->heredoc_quoted;
     delimiter = dequote_runtime_word(redir->target);
     if (delimiter == NULL)
         return 1;

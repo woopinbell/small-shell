@@ -20,6 +20,7 @@ typedef struct s_token {
     t_token_type    type;
     char            *text;
     size_t          start;
+    int             quoted;
     struct s_token  *next;
 }   t_token;
 
@@ -38,6 +39,7 @@ typedef enum e_redir_type {
 typedef struct s_redir {
     t_redir_type    type;
     char            *target;
+    int             heredoc_quoted;
     struct s_redir  *next;
 }   t_redir;
 
