@@ -94,6 +94,18 @@ second
 " \
 0
 
+run_case parent_redirection_restore \
+"echo file-data > $TMP/parent-in.txt
+export SMALLSH_PARENT=kept < $TMP/parent-in.txt > $TMP/parent-out.txt
+echo after
+env | grep '^SMALLSH_PARENT=kept$'
+cat $TMP/parent-out.txt
+" \
+"after
+SMALLSH_PARENT=kept
+" \
+0
+
 run_case heredoc \
 "export HD=beta
 cat <<EOF
