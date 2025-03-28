@@ -5,11 +5,13 @@
 
 #define LITERAL_MARK '\001'
 
-static t_token *new_token(t_token_type type, char *text, size_t start) {
+static t_token *new_token(t_token_type type, char *text, size_t start,
+        int quoted) {
     t_token *token = (t_token *)sh_xcalloc(1, sizeof(t_token));
     token->type = type;
     token->text = text ? text : sh_strdup("");
     token->start = start;
+    token->quoted = quoted;
     return token;
 }
 
@@ -43,15 +45,18 @@ static char *append_literal(char *word, char c) {
     return append_char(word, c);
 }
 
-static char *read_word(const char *line, size_t *i, char **error) {
+static char *read_word(const char *line, size_t *i, char **error,
+        int *quoted) {
     char    *word;
     char    quote;
 
     word = sh_strdup("");
+    *quoted = 0;
     while (line[*i] && !is_shell_space(line[*i])
         && !is_operator_char(line[*i])) {
         if (line[*i] == '\'' || line[*i] == '"') {
             quote = line[*i];
+            *quoted = 1;
             (*i)++;
             while (line[*i] && line[*i] != quote) {
                 if (quote == '\'')
@@ -80,6 +85,7 @@ t_token *tokenize_line(const char *line, char **error) {
     size_t  i;
     size_t  start;
     char    *word;
+    int     quoted;
 
     head = NULL;
     tail = NULL;
@@ -93,14 +99,14 @@ t_token *tokenize_line(const char *line, char **error) {
             break;
         if (line[i] == '|') {
             if (line[i + 1] == '|') {
-                push_token(&head, &tail, new_token(TOK_OR, sh_strdup("||"), i));
+                push_token(&head, &tail, new_token(TOK_OR, sh_strdup("||"), i, 0));
                 i += 2;
             } else {
-                push_token(&head, &tail, new_token(TOK_PIPE, sh_strdup("|"), i));
+                push_token(&head, &tail, new_token(TOK_PIPE, sh_strdup("|"), i, 0));
                 i++;
             }
         } else if (line[i] == '&' && line[i + 1] == '&') {
-            push_token(&head, &tail, new_token(TOK_AND, sh_strdup("&&"), i));
+            push_token(&head, &tail, new_token(TOK_AND, sh_strdup("&&"), i, 0));
             i += 2;
         } else if (line[i] == '&') {
             if (error)
@@ -108,32 +114,32 @@ t_token *tokenize_line(const char *line, char **error) {
             free_tokens(head);
             return NULL;
         } else if (line[i] == ';') {
-            push_token(&head, &tail, new_token(TOK_SEQ, sh_strdup(";"), i));
+            push_token(&head, &tail, new_token(TOK_SEQ, sh_strdup(";"), i, 0));
             i++;
         } else if (line[i] == '<') {
             if (line[i + 1] == '<') {
-                push_token(&head, &tail, new_token(TOK_HEREDOC, sh_strdup("<<"), i));
+                push_token(&head, &tail, new_token(TOK_HEREDOC, sh_strdup("<<"), i, 0));
                 i += 2;
             } else {
-                push_token(&head, &tail, new_token(TOK_REDIR_IN, sh_strdup("<"), i));
+                push_token(&head, &tail, new_token(TOK_REDIR_IN, sh_strdup("<"), i, 0));
                 i++;
             }
         } else if (line[i] == '>') {
             if (line[i + 1] == '>') {
-                push_token(&head, &tail, new_token(TOK_REDIR_APPEND, sh_strdup(">>"), i));
+                push_token(&head, &tail, new_token(TOK_REDIR_APPEND, sh_strdup(">>"), i, 0));
                 i += 2;
             } else {
-                push_token(&head, &tail, new_token(TOK_REDIR_OUT, sh_strdup(">"), i));
+                push_token(&head, &tail, new_token(TOK_REDIR_OUT, sh_strdup(">"), i, 0));
                 i++;
             }
         } else {
             start = i;
-            word = read_word(line, &i, error);
+            word = read_word(line, &i, error, &quoted);
             if (!word) {
                 free_tokens(head);
                 return NULL;
             }
-            push_token(&head, &tail, new_token(TOK_WORD, word, start));
+            push_token(&head, &tail, new_token(TOK_WORD, word, start, quoted));
         }
     }
     return head;
