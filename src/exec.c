@@ -46,9 +46,9 @@ static void child_die(const char *what)
 static void run_child(t_shell *shell, const t_pipeline *pipeline, const t_command *command,
     const struct exec_context *ctx, int (*pipes)[2], size_t pipe_count, size_t index)
 {
-    if (index > 0 && dup2(pipes[index - 1][0], STDIN_FILENO) < 0)
+    if (index > 0 && shell_dup2(pipes[index - 1][0], STDIN_FILENO) < 0)
         child_die("dup2");
-    if (index + 1 < pipeline->command_count && dup2(pipes[index][1], STDOUT_FILENO) < 0)
+    if (index + 1 < pipeline->command_count && shell_dup2(pipes[index][1], STDOUT_FILENO) < 0)
         child_die("dup2");
     close_pipes(pipes, pipe_count);
 

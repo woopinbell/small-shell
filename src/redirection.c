@@ -1,6 +1,7 @@
 #define _POSIX_C_SOURCE 200809L
 
 #include "exec_internal.h"
+#include "runtime.h"
 
 #include <errno.h>
 #include <fcntl.h>
@@ -18,13 +19,13 @@ int exec_apply_redirections(const t_command *command,
         int fd;
 
         if (redir->type == REDIR_IN) {
-            fd = open(redir->target, O_RDONLY);
+            fd = shell_open(redir->target, O_RDONLY, 0);
             if (fd < 0) {
                 fprintf(stderr, "small-shell: %s: %s\n", redir->target,
                     strerror(errno));
                 return 1;
             }
-            if (dup2(fd, STDIN_FILENO) < 0) {
+            if (shell_dup2(fd, STDIN_FILENO) < 0) {
                 fprintf(stderr, "small-shell: dup2: %s\n", strerror(errno));
                 close(fd);
                 return 1;
@@ -39,13 +40,13 @@ int exec_apply_redirections(const t_command *command,
                 flags |= O_TRUNC;
             else
                 flags |= O_APPEND;
-            fd = open(redir->target, flags, 0644);
+            fd = shell_open(redir->target, flags, 0644);
             if (fd < 0) {
                 fprintf(stderr, "small-shell: %s: %s\n", redir->target,
                     strerror(errno));
                 return 1;
             }
-            if (dup2(fd, STDOUT_FILENO) < 0) {
+            if (shell_dup2(fd, STDOUT_FILENO) < 0) {
                 fprintf(stderr, "small-shell: dup2: %s\n", strerror(errno));
                 close(fd);
                 return 1;
@@ -70,7 +71,7 @@ int exec_apply_redirections(const t_command *command,
             }
             fflush(tmp);
             rewind(tmp);
-            if (dup2(fileno(tmp), STDIN_FILENO) < 0) {
+            if (shell_dup2(fileno(tmp), STDIN_FILENO) < 0) {
                 fprintf(stderr, "small-shell: dup2: %s\n", strerror(errno));
                 fclose(tmp);
                 return 1;
@@ -84,8 +85,8 @@ int exec_apply_redirections(const t_command *command,
 
 static int save_stdio(int saved[2])
 {
-    saved[0] = dup(STDIN_FILENO);
-    saved[1] = dup(STDOUT_FILENO);
+    saved[0] = shell_dup(STDIN_FILENO);
+    saved[1] = shell_dup(STDOUT_FILENO);
     if (saved[0] < 0 || saved[1] < 0) {
         if (saved[0] >= 0)
             close(saved[0]);
@@ -100,11 +101,11 @@ static int save_stdio(int saved[2])
 static void restore_stdio(int saved[2])
 {
     if (saved[0] >= 0) {
-        (void)dup2(saved[0], STDIN_FILENO);
+        (void)shell_dup2(saved[0], STDIN_FILENO);
         close(saved[0]);
     }
     if (saved[1] >= 0) {
-        (void)dup2(saved[1], STDOUT_FILENO);
+        (void)shell_dup2(saved[1], STDOUT_FILENO);
         close(saved[1]);
     }
 }
