@@ -9,6 +9,20 @@
 #include <string.h>
 #include <unistd.h>
 
+static int heredoc_stream_error(FILE *stream, const char *operation)
+{
+    int saved_errno;
+
+    saved_errno = errno;
+    if (saved_errno == 0)
+        saved_errno = EIO;
+    fprintf(stderr, "small-shell: heredoc %s: %s\n", operation,
+        strerror(saved_errno));
+    fclose(stream);
+    errno = saved_errno;
+    return 1;
+}
+
 int exec_apply_redirections(const t_command *command,
     const struct exec_context *ctx)
 {
@@ -63,15 +77,16 @@ int exec_apply_redirections(const t_command *command,
                 return 1;
             }
             body = exec_find_heredoc_body(ctx, redir);
-            if (body != NULL && fputs(body, tmp) == EOF) {
-                fprintf(stderr, "small-shell: heredoc: %s\n",
-                    strerror(errno));
-                fclose(tmp);
-                return 1;
-            }
-            (void)shell_fflush(tmp);
-            (void)shell_fseek(tmp, 0L, SEEK_SET);
-            if (shell_dup2(shell_fileno(tmp), STDIN_FILENO) < 0) {
+            if (body != NULL && fputs(body, tmp) == EOF)
+                return heredoc_stream_error(tmp, "write");
+            if (shell_fflush(tmp) != 0)
+                return heredoc_stream_error(tmp, "flush");
+            if (shell_fseek(tmp, 0L, SEEK_SET) != 0)
+                return heredoc_stream_error(tmp, "seek");
+            fd = shell_fileno(tmp);
+            if (fd < 0)
+                return heredoc_stream_error(tmp, "descriptor");
+            if (shell_dup2(fd, STDIN_FILENO) < 0) {
                 fprintf(stderr, "small-shell: dup2: %s\n", strerror(errno));
                 fclose(tmp);
                 return 1;
