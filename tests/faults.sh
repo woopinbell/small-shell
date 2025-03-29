@@ -56,4 +56,65 @@ echo $?' \
     '1
 '
 
+run_fault save_stdin SMALL_SHELL_FAIL_DUP 1 \
+    "echo hidden > $TMP/save-stdin
+echo \$?
+echo after" \
+    '1
+after
+'
+
+run_fault save_stdout SMALL_SHELL_FAIL_DUP 2 \
+    "echo hidden > $TMP/save-stdout
+echo \$?
+echo after" \
+    '1
+after
+'
+
+run_fault apply_stdout SMALL_SHELL_FAIL_DUP2 1 \
+    "echo hidden > $TMP/apply-stdout
+echo \$?
+echo after" \
+    '1
+after
+'
+
+run_fault restore_stdin SMALL_SHELL_FAIL_DUP2 2 \
+    "echo hidden > $TMP/restore-stdin
+echo \$?
+echo after" \
+    '1
+after
+'
+
+run_fault restore_stdout SMALL_SHELL_FAIL_DUP2 3 \
+    "echo hidden > $TMP/restore-stdout
+echo \$?
+echo after" \
+    '1
+after
+'
+
+run_fault open_output SMALL_SHELL_FAIL_OPEN 1 \
+    "echo hidden > $TMP/open-output
+echo \$?
+echo after" \
+    '1
+after
+'
+
+set +e
+env SMALL_SHELL_FAIL_DUP2=2 SMALL_SHELL_FAIL_DUP2_REPEAT=1 \
+    "$BIN" >"$TMP/persistent-restore.out" \
+    2>"$TMP/persistent-restore.err" <<EOF
+echo hidden > $TMP/persistent-restore-file
+echo never
+EOF
+status=$?
+set -e
+[ "$status" -eq 1 ] || fail persistent-restore
+[ ! -s "$TMP/persistent-restore.out" ] || fail persistent-restore
+grep -q 'dup2' "$TMP/persistent-restore.err" || fail persistent-restore
+
 echo "ok - pipeline faults"
