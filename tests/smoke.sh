@@ -130,6 +130,30 @@ EOF
 " \
 0
 
+run_case double_quoted_heredoc \
+"export HD=beta
+cat <<\"EOF\"
+alpha
+\$HD
+EOF
+" \
+"alpha
+\$HD
+" \
+0
+
+run_case partially_quoted_heredoc \
+"export HD=beta
+cat <<E\"OF\"
+alpha
+\$HD
+EOF
+" \
+"alpha
+\$HD
+" \
+0
+
 run_case syntax_error_status \
 "echo |
 echo \$?
