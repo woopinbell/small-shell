@@ -98,16 +98,37 @@ static int save_stdio(int saved[2])
     return 0;
 }
 
-static void restore_stdio(int saved[2])
+static int restore_one(int saved, int target)
 {
-    if (saved[0] >= 0) {
-        (void)shell_dup2(saved[0], STDIN_FILENO);
-        close(saved[0]);
+    int attempts;
+    int had_error;
+
+    attempts = 0;
+    had_error = 0;
+    while (attempts < 2) {
+        if (shell_dup2(saved, target) >= 0)
+            return had_error;
+        if (errno == EINTR)
+            continue;
+        fprintf(stderr, "small-shell: dup2: %s\n", strerror(errno));
+        had_error = 1;
+        attempts++;
     }
-    if (saved[1] >= 0) {
-        (void)shell_dup2(saved[1], STDOUT_FILENO);
-        close(saved[1]);
-    }
+    return -1;
+}
+
+static int restore_stdio(int saved[2])
+{
+    int input_result;
+    int output_result;
+
+    input_result = restore_one(saved[0], STDIN_FILENO);
+    output_result = restore_one(saved[1], STDOUT_FILENO);
+    close(saved[0]);
+    close(saved[1]);
+    if (input_result < 0 || output_result < 0)
+        return -1;
+    return (input_result != 0 || output_result != 0);
 }
 
 int exec_run_parent_command(t_shell *shell, const t_command *command,
@@ -119,14 +140,24 @@ int exec_run_parent_command(t_shell *shell, const t_command *command,
     if (save_stdio(saved) != 0)
         return 1;
     if (exec_apply_redirections(command, ctx) != 0) {
-        restore_stdio(saved);
+        if (restore_stdio(saved) < 0)
+            shell->running = 0;
         return 1;
     }
     if (command->argc == 0)
         status = 0;
     else
         status = builtin_run(shell, command->argv);
-    fflush(stdout);
-    restore_stdio(saved);
+    if (fflush(stdout) == EOF)
+        status = 1;
+    {
+        int restore_result;
+
+        restore_result = restore_stdio(saved);
+        if (restore_result != 0)
+            status = 1;
+        if (restore_result < 0)
+            shell->running = 0;
+    }
     return status;
 }
