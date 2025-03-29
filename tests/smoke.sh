@@ -2,7 +2,7 @@
 set -eu
 
 ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
-BIN="$ROOT/small-shell"
+BIN=${SMALL_SHELL_BIN:-"$ROOT/small-shell"}
 TMP=$(mktemp -d "${TMPDIR:-/tmp}/small-shell.XXXXXX")
 TMP_PHYSICAL=$(CDPATH= cd -- "$TMP" && pwd -P)
 
@@ -177,5 +177,23 @@ echo never
 " \
 "" \
 7
+
+run_case multi_stage_pipeline \
+"printf abc | tr a-z A-Z | sed 's/B/X/' | cat
+" \
+"AXC" \
+0
+
+run_case redirection_order \
+"echo first > $TMP/first.txt > $TMP/second.txt
+cat $TMP/first.txt
+cat $TMP/second.txt
+echo pipe > $TMP/pipe.txt | cat
+cat $TMP/pipe.txt
+" \
+"first
+pipe
+" \
+0
 
 echo "ok - smoke"
