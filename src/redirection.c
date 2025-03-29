@@ -69,9 +69,9 @@ int exec_apply_redirections(const t_command *command,
                 fclose(tmp);
                 return 1;
             }
-            fflush(tmp);
-            rewind(tmp);
-            if (shell_dup2(fileno(tmp), STDIN_FILENO) < 0) {
+            (void)shell_fflush(tmp);
+            (void)shell_fseek(tmp, 0L, SEEK_SET);
+            if (shell_dup2(shell_fileno(tmp), STDIN_FILENO) < 0) {
                 fprintf(stderr, "small-shell: dup2: %s\n", strerror(errno));
                 fclose(tmp);
                 return 1;
