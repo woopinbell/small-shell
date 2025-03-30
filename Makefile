@@ -18,6 +18,7 @@ SRCS := \
 	src/redirection.c \
 	src/builtin.c
 OBJS := $(SRCS:.c=.o)
+PARSER_API_TARGET := tests/parser-api
 
 ifeq ($(USE_READLINE),1)
 CPPFLAGS += -DUSE_READLINE
@@ -32,13 +33,18 @@ $(TARGET): $(OBJS)
 %.o: %.c
 	$(CC) $(CPPFLAGS) $(CFLAGS) -c -o $@ $<
 
+$(PARSER_API_TARGET): tests/parser_api.c $(filter-out src/main.c,$(SRCS))
+	$(CC) $(CPPFLAGS) $(CFLAGS) $(LDFLAGS) -o $@ \
+		tests/parser_api.c $(filter-out src/main.c,$(SRCS)) $(LDLIBS)
+
 readline:
 	$(MAKE) USE_READLINE=1
 
-test: $(TARGET)
+test: $(TARGET) $(PARSER_API_TARGET)
 	./tests/smoke.sh
+	./$(PARSER_API_TARGET)
 
 clean:
-	rm -f $(TARGET) $(OBJS)
+	rm -f $(TARGET) $(PARSER_API_TARGET) $(OBJS)
 
 .PHONY: all readline test clean
