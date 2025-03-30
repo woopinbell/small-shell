@@ -275,24 +275,32 @@ void shell_sequence_free(t_sequence *sequence) {
 }
 
 int shell_parse_line(const char *line, t_sequence *sequence, char **error) {
-    t_token *tokens;
+    t_token  *tokens;
+    char     *internal_error;
+    char     **error_slot;
 
+    internal_error = NULL;
+    error_slot = error ? error : &internal_error;
     if (!sequence) {
-        if (error)
-            *error = sh_strdup("parse output is null");
+        *error_slot = sh_strdup("parse output is null");
+        free(internal_error);
         return 1;
     }
     shell_sequence_init(sequence);
-    tokens = tokenize_line(line, error);
-    if (error && *error)
+    tokens = tokenize_line(line, error_slot);
+    if (*error_slot) {
+        free(internal_error);
         return 1;
-    sequence->pipelines = parse_tokens(tokens, error);
+    }
+    sequence->pipelines = parse_tokens(tokens, error_slot);
     free_tokens(tokens);
-    if (error && *error) {
+    if (*error_slot) {
         shell_sequence_free(sequence);
+        free(internal_error);
         return 1;
     }
     sequence->pipeline_count = count_pipelines(sequence->pipelines);
+    free(internal_error);
     return 0;
 }
 
