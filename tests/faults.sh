@@ -104,6 +104,26 @@ echo after" \
 after
 '
 
+run_fault heredoc_flush SMALL_SHELL_FAIL_FFLUSH 1 \
+    'cat <<EOF
+body
+EOF
+echo $?
+echo after' \
+    '1
+after
+'
+
+run_fault heredoc_seek SMALL_SHELL_FAIL_FSEEK 1 \
+    'cat <<EOF
+body
+EOF
+echo $?
+echo after' \
+    '1
+after
+'
+
 set +e
 env SMALL_SHELL_FAIL_DUP2=2 SMALL_SHELL_FAIL_DUP2_REPEAT=1 \
     "$BIN" >"$TMP/persistent-restore.out" \
