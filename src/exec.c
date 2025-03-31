@@ -4,6 +4,7 @@
 #include "runtime.h"
 
 #include <errno.h>
+#include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -87,6 +88,38 @@ static void run_child(t_shell *shell, const t_pipeline *pipeline, const t_comman
     }
 }
 
+static void terminate_children(const pid_t *pids, size_t count)
+{
+    size_t i;
+
+    for (i = 0; i < count; i++) {
+        if (pids[i] > 0 && kill(pids[i], SIGKILL) < 0 && errno != ESRCH)
+            fprintf(stderr, "small-shell: kill: %s\n", strerror(errno));
+    }
+}
+
+static int wait_for_child(pid_t pid, int *wait_status)
+{
+    int attempts;
+    int had_error;
+
+    attempts = 0;
+    had_error = 0;
+    while (attempts < 2) {
+        pid_t waited;
+
+        waited = shell_waitpid(pid, wait_status, 0);
+        if (waited == pid)
+            return had_error;
+        if (waited < 0 && errno == EINTR)
+            continue;
+        fprintf(stderr, "small-shell: waitpid: %s\n", strerror(errno));
+        had_error = 1;
+        attempts++;
+    }
+    return -1;
+}
+
 static int run_forked_pipeline(t_shell *shell, const t_pipeline *pipeline, const struct exec_context *ctx)
 {
     size_t pipe_count;
@@ -96,12 +129,14 @@ static int run_forked_pipeline(t_shell *shell, const t_pipeline *pipeline, const
     size_t i;
     size_t spawned;
     int result;
+    int wait_error;
 
     pipe_count = pipeline->command_count - 1;
     pipes = NULL;
     pids = NULL;
     spawned = 0;
     result = 1;
+    wait_error = 0;
 
     if (pipe_count > 0) {
         pipes = (int (*)[2])malloc(sizeof(int[2]) * pipe_count);
@@ -142,17 +177,21 @@ static int run_forked_pipeline(t_shell *shell, const t_pipeline *pipeline, const
     }
 
     close_pipes(pipes, pipe_count);
+    if (spawned != pipeline->command_count)
+        terminate_children(pids, spawned);
     for (i = 0; i < spawned; i++) {
         int wait_status;
-        pid_t waited;
+        int wait_result;
 
-        do {
-            waited = shell_waitpid(pids[i], &wait_status, 0);
-        } while (waited < 0 && errno == EINTR);
-        if (waited == pids[i] && i + 1 == pipeline->command_count)
+        wait_result = wait_for_child(pids[i], &wait_status);
+        if (wait_result == 0 && i + 1 == pipeline->command_count)
             result = status_from_wait(wait_status);
+        if (wait_result != 0)
+            wait_error = 1;
     }
 
+    if (wait_error)
+        result = 1;
     free(pids);
     free(pipes);
     return spawned == pipeline->command_count ? result : 1;
