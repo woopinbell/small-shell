@@ -1,6 +1,7 @@
 #define _POSIX_C_SOURCE 200809L
 
 #include "exec_internal.h"
+#include "runtime.h"
 
 #include <errno.h>
 #include <stdio.h>
@@ -111,7 +112,7 @@ static int run_forked_pipeline(t_shell *shell, const t_pipeline *pipeline, const
             pipes[i][1] = -1;
         }
         for (i = 0; i < pipe_count; i++) {
-            if (pipe(pipes[i]) < 0) {
+            if (shell_pipe(pipes[i]) < 0) {
                 fprintf(stderr, "small-shell: pipe: %s\n", strerror(errno));
                 close_pipes(pipes, pipe_count);
                 free(pipes);
@@ -128,7 +129,7 @@ static int run_forked_pipeline(t_shell *shell, const t_pipeline *pipeline, const
     for (i = 0; i < pipeline->command_count && command != NULL; i++) {
         pid_t pid;
 
-        pid = fork();
+        pid = shell_fork();
         if (pid < 0) {
             fprintf(stderr, "small-shell: fork: %s\n", strerror(errno));
             break;
@@ -146,7 +147,7 @@ static int run_forked_pipeline(t_shell *shell, const t_pipeline *pipeline, const
         pid_t waited;
 
         do {
-            waited = waitpid(pids[i], &wait_status, 0);
+            waited = shell_waitpid(pids[i], &wait_status, 0);
         } while (waited < 0 && errno == EINTR);
         if (waited == pids[i] && i + 1 == pipeline->command_count)
             result = status_from_wait(wait_status);

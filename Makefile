@@ -13,6 +13,7 @@ SRCS := \
 	src/expand.c \
 	src/env.c \
 	src/utils.c \
+	src/runtime.c \
 	src/exec.c \
 	src/heredoc.c \
 	src/redirection.c \
