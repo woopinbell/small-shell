@@ -94,7 +94,7 @@ typedef struct s_executor_hooks {
 char        *sh_strdup(const char *s);
 char        *sh_substr(const char *s, size_t start, size_t len);
 char        *sh_strjoin_free(char *left, const char *right);
-void        *sh_xcalloc(size_t count, size_t size);
+void        *sh_calloc(size_t count, size_t size);
 void        sh_free_words(char **words);
 char        *shell_strndup(const char *s, size_t len);
 char        *shell_itoa_status(int status);

@@ -222,8 +222,10 @@ static int execute_one_pipeline(t_shell *shell, t_pipeline *pipeline, const stru
 
     if (pipeline == NULL || pipeline->command_count == 0)
         return shell->last_status;
-    if (expand_one_pipeline(shell, pipeline) != 0)
+    if (expand_one_pipeline(shell, pipeline) != 0) {
+        fprintf(stderr, "small-shell: allocation failure\n");
         return 1;
+    }
     command = pipeline->commands;
     if (pipeline->command_count == 1
         && (command->argc == 0 || builtin_is_parent(command->argv[0])))
@@ -261,6 +263,13 @@ int execute_pipeline_list(t_shell *shell, t_pipeline *pipeline)
     return execute_pipeline_list_ctx(shell, pipeline, &ctx);
 }
 
+static int process_error_status(const char *error)
+{
+    if (error != NULL && strcmp(error, "allocation failure") == 0)
+        return 1;
+    return 258;
+}
+
 int shell_process_line(t_shell *shell, const char *line)
 {
     t_token *tokens;
@@ -272,20 +281,26 @@ int shell_process_line(t_shell *shell, const char *line)
         return shell != NULL ? shell->last_status : 1;
 
     error = NULL;
+    errno = 0;
     tokens = tokenize_line(line, &error);
-    if (error != NULL) {
-        fprintf(stderr, "small-shell: %s\n", error);
+    if (error != NULL || (tokens == NULL && errno == ENOMEM)) {
+        shell->last_status = error != NULL
+            ? process_error_status(error) : 1;
+        fprintf(stderr, "small-shell: %s\n",
+            error != NULL ? error : "allocation failure");
         free(error);
-        shell->last_status = 258;
         return shell->last_status;
     }
 
+    errno = 0;
     pipelines = parse_tokens(tokens, &error);
     free_tokens(tokens);
-    if (error != NULL) {
-        fprintf(stderr, "small-shell: %s\n", error);
+    if (error != NULL || (pipelines == NULL && errno == ENOMEM)) {
+        shell->last_status = error != NULL
+            ? process_error_status(error) : 1;
+        fprintf(stderr, "small-shell: %s\n",
+            error != NULL ? error : "allocation failure");
         free(error);
-        shell->last_status = 258;
         return shell->last_status;
     }
     if (pipelines == NULL)
