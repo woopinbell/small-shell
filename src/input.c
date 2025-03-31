@@ -1,6 +1,7 @@
 #define _POSIX_C_SOURCE 200809L
 
 #include "shell.h"
+#include "runtime.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -25,7 +26,7 @@ static char *read_plain_line(const char *prompt, int interactive)
 
     cap = 128;
     len = 0;
-    line = malloc(cap);
+    line = shell_malloc(cap);
     if (line == NULL)
         return NULL;
 
@@ -36,7 +37,7 @@ static char *read_plain_line(const char *prompt, int interactive)
             break;
         if (len + 1 >= cap) {
             cap *= 2;
-            grown = realloc(line, cap);
+            grown = shell_realloc(line, cap);
             if (grown == NULL) {
                 free(line);
                 return NULL;

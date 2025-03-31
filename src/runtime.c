@@ -4,6 +4,7 @@
 
 #include <errno.h>
 #include <fcntl.h>
+#include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/wait.h>
@@ -40,6 +41,25 @@ static int fail_call(const char *name, unsigned long *calls)
 }
 
 #endif
+
+void *shell_malloc(size_t size)
+{
+    return malloc(size);
+}
+
+void *shell_calloc(size_t count, size_t size)
+{
+    if (size != 0 && count > SIZE_MAX / size) {
+        errno = ENOMEM;
+        return NULL;
+    }
+    return calloc(count, size);
+}
+
+void *shell_realloc(void *ptr, size_t size)
+{
+    return realloc(ptr, size);
+}
 
 int shell_pipe(int fds[2])
 {
