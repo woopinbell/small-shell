@@ -118,3 +118,18 @@ int shell_open(const char *path, int flags, mode_t mode)
 #endif
     return open(path, flags, mode);
 }
+
+int shell_fflush(FILE *stream)
+{
+    return fflush(stream);
+}
+
+int shell_fseek(FILE *stream, long offset, int whence)
+{
+    return fseek(stream, offset, whence);
+}
+
+int shell_fileno(FILE *stream)
+{
+    return fileno(stream);
+}
