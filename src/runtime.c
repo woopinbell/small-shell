@@ -121,11 +121,27 @@ int shell_open(const char *path, int flags, mode_t mode)
 
 int shell_fflush(FILE *stream)
 {
+#ifdef SMALL_SHELL_TESTING
+    static unsigned long calls;
+
+    if (fail_call("SMALL_SHELL_FAIL_FFLUSH", &calls)) {
+        errno = ENOSPC;
+        return EOF;
+    }
+#endif
     return fflush(stream);
 }
 
 int shell_fseek(FILE *stream, long offset, int whence)
 {
+#ifdef SMALL_SHELL_TESTING
+    static unsigned long calls;
+
+    if (fail_call("SMALL_SHELL_FAIL_FSEEK", &calls)) {
+        errno = EIO;
+        return -1;
+    }
+#endif
     return fseek(stream, offset, whence);
 }
 
