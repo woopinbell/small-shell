@@ -139,13 +139,19 @@ static int run_forked_pipeline(t_shell *shell, const t_pipeline *pipeline, const
     wait_error = 0;
 
     if (pipe_count > 0) {
-        pipes = (int (*)[2])shell_malloc(sizeof(int[2]) * pipe_count);
+        pipes = (int (*)[2])shell_calloc(pipe_count, sizeof(int[2]));
         if (pipes == NULL)
             goto alloc_error;
         for (i = 0; i < pipe_count; i++) {
             pipes[i][0] = -1;
             pipes[i][1] = -1;
         }
+    }
+    pids = (pid_t *)shell_calloc(pipeline->command_count, sizeof(pid_t));
+    if (pids == NULL)
+        goto alloc_error;
+
+    if (pipe_count > 0) {
         for (i = 0; i < pipe_count; i++) {
             if (shell_pipe(pipes[i]) < 0) {
                 fprintf(stderr, "small-shell: pipe: %s\n", strerror(errno));
@@ -155,10 +161,6 @@ static int run_forked_pipeline(t_shell *shell, const t_pipeline *pipeline, const
             }
         }
     }
-
-    pids = (pid_t *)shell_calloc(pipeline->command_count, sizeof(pid_t));
-    if (pids == NULL)
-        goto alloc_error;
 
     command = pipeline->commands;
     for (i = 0; i < pipeline->command_count && command != NULL; i++) {
