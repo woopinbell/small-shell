@@ -2,6 +2,10 @@
 
 #include "shell.h"
 
+#include <errno.h>
+#include <stdio.h>
+#include <string.h>
+
 static int normalize_status(int status)
 {
     return status & 0xff;
@@ -14,7 +18,13 @@ int main(int argc, char **argv, char **envp)
 
     (void)argc;
     (void)argv;
+    errno = 0;
     shell.env = env_from_environ(envp);
+    if (shell.env == NULL && envp != NULL && envp[0] != NULL
+        && errno == ENOMEM) {
+        fprintf(stderr, "small-shell: startup: %s\n", strerror(errno));
+        return 1;
+    }
     shell.last_status = 0;
     shell.running = 1;
 
