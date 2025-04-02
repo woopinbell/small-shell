@@ -22,9 +22,10 @@ static char *read_plain_line(const char *prompt, int interactive, int *failed)
     char    *line;
 
     *failed = 0;
-    if (interactive && prompt != NULL) {
-        fputs(prompt, stderr);
-        fflush(stderr);
+    if (interactive && prompt != NULL
+        && shell_write_text(STDERR_FILENO, prompt) != 0) {
+        *failed = 1;
+        return NULL;
     }
     cap = 128;
     len = 0;
@@ -117,5 +118,5 @@ void shell_loop(t_shell *shell)
         free(line);
     }
     if (interactive && shell->running)
-        fputc('\n', stderr);
+        (void)shell_write_text(STDERR_FILENO, "\n");
 }

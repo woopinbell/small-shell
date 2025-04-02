@@ -1,7 +1,9 @@
 #include "shell.h"
-#include <stdio.h>
+#include "runtime.h"
+
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
 
 static t_env *env_new(const char *key, const char *value, int exported)
 {
@@ -206,17 +208,27 @@ char **env_to_environ(t_env *env)
     return out;
 }
 
-void env_print(t_env *env, int declare_style)
+int env_print(t_env *env, int declare_style)
 {
     while (env != NULL) {
         if (env->key != NULL && env->exported) {
-            if (declare_style)
-                printf("declare -x %s=\"%s\"\n", env->key, env->value);
-            else
-                printf("%s=%s\n", env->key, env->value);
+            if (declare_style
+                && (shell_write_text(STDOUT_FILENO, "declare -x ") != 0
+                    || shell_write_text(STDOUT_FILENO, env->key) != 0
+                    || shell_write_text(STDOUT_FILENO, "=\"") != 0
+                    || shell_write_text(STDOUT_FILENO, env->value) != 0
+                    || shell_write_text(STDOUT_FILENO, "\"\n") != 0))
+                return 1;
+            if (!declare_style
+                && (shell_write_text(STDOUT_FILENO, env->key) != 0
+                    || shell_write_text(STDOUT_FILENO, "=") != 0
+                    || shell_write_text(STDOUT_FILENO, env->value) != 0
+                    || shell_write_text(STDOUT_FILENO, "\n") != 0))
+                return 1;
         }
         env = env->next;
     }
+    return 0;
 }
 
 static int is_sentinel(t_env *env)
