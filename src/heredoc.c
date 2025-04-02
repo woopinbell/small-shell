@@ -1,6 +1,7 @@
 #define _POSIX_C_SOURCE 200809L
 
 #include "exec_internal.h"
+#include "runtime.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -21,7 +22,7 @@ static int sb_init(struct strbuf *buf)
 {
     buf->cap = 64;
     buf->len = 0;
-    buf->data = (char *)malloc(buf->cap);
+    buf->data = (char *)shell_malloc(buf->cap);
     if (buf->data == NULL)
         return 1;
     buf->data[0] = '\0';
@@ -46,7 +47,7 @@ static int sb_reserve(struct strbuf *buf, size_t extra)
         return 0;
     while (buf->cap < needed)
         buf->cap *= 2;
-    next = (char *)realloc(buf->data, buf->cap);
+    next = (char *)shell_realloc(buf->data, buf->cap);
     if (next == NULL)
         return 1;
     buf->data = next;
@@ -181,7 +182,7 @@ static int add_heredoc_entry(struct exec_context *ctx, const t_redir *redir,
 {
     struct heredoc_entry *entry;
 
-    entry = (struct heredoc_entry *)malloc(sizeof(*entry));
+    entry = (struct heredoc_entry *)shell_malloc(sizeof(*entry));
     if (entry == NULL)
         return 1;
     entry->redir = redir;

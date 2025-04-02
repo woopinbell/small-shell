@@ -1,4 +1,5 @@
 #include "shell.h"
+#include "runtime.h"
 
 #include <ctype.h>
 #include <stdio.h>
@@ -6,7 +7,7 @@
 #include <string.h>
 
 void *sh_xcalloc(size_t count, size_t size) {
-    void *ptr = calloc(count, size);
+    void *ptr = shell_calloc(count, size);
     if (!ptr) {
         perror("small-shell: calloc");
         exit(1);
@@ -21,7 +22,7 @@ char *sh_strdup(const char *s) {
     if (!s)
         s = "";
     len = strlen(s);
-    copy = (char *)malloc(len + 1);
+    copy = (char *)shell_malloc(len + 1);
     if (!copy) {
         perror("small-shell: malloc");
         exit(1);
@@ -119,7 +120,7 @@ char *shell_itoa_status(int status) {
             buf[len++] = digits[--count];
     }
     buf[len] = '\0';
-    out = (char *)malloc(len + 1);
+    out = (char *)shell_malloc(len + 1);
     if (!out)
         return NULL;
     memcpy(out, buf, len + 1);

@@ -139,7 +139,7 @@ static int run_forked_pipeline(t_shell *shell, const t_pipeline *pipeline, const
     wait_error = 0;
 
     if (pipe_count > 0) {
-        pipes = (int (*)[2])malloc(sizeof(int[2]) * pipe_count);
+        pipes = (int (*)[2])shell_malloc(sizeof(int[2]) * pipe_count);
         if (pipes == NULL)
             goto alloc_error;
         for (i = 0; i < pipe_count; i++) {
@@ -156,7 +156,7 @@ static int run_forked_pipeline(t_shell *shell, const t_pipeline *pipeline, const
         }
     }
 
-    pids = (pid_t *)calloc(pipeline->command_count, sizeof(pid_t));
+    pids = (pid_t *)shell_calloc(pipeline->command_count, sizeof(pid_t));
     if (pids == NULL)
         goto alloc_error;
 
