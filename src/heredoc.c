@@ -3,6 +3,7 @@
 #include "exec_internal.h"
 #include "runtime.h"
 
+#include <errno.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -17,7 +18,7 @@ struct strbuf {
     size_t  cap;
 };
 
-char *shell_read_line(const char *prompt, int interactive);
+char *shell_read_line(const char *prompt, int interactive, int *failed);
 
 static int sb_init(struct strbuf *buf)
 {
@@ -187,17 +188,18 @@ static int delimiter_matches(const char *line, const char *encoded)
     return line[j] == '\0';
 }
 
-static void discard_heredoc(const char *delimiter, int interactive)
+static int discard_heredoc(const char *delimiter, int interactive)
 {
     for (;;) {
-        char *line;
+        char    *line;
+        int     failed;
 
-        line = shell_read_line("> ", interactive);
+        line = shell_read_line("> ", interactive, &failed);
         if (line == NULL)
-            return;
+            return failed;
         if (delimiter_matches(line, delimiter)) {
             free(line);
-            return;
+            return 0;
         }
         free(line);
     }
@@ -262,25 +264,34 @@ static int read_heredoc(struct exec_context *ctx, t_redir *redir)
     char            *delimiter;
     int             quoted;
     int             interactive;
+    int             input_failed;
 
     interactive = isatty(STDIN_FILENO) && isatty(STDERR_FILENO);
     quoted = redir->heredoc_quoted;
     delimiter = dequote_runtime_word(redir->target);
     if (delimiter == NULL) {
-        discard_heredoc(redir->target, interactive);
+        (void)discard_heredoc(redir->target, interactive);
         return 1;
     }
     free(redir->target);
     redir->target = delimiter;
     if (sb_init(&body) != 0) {
-        discard_heredoc(redir->target, interactive);
+        (void)discard_heredoc(redir->target, interactive);
         return 1;
     }
     for (;;) {
         char *line;
 
-        line = shell_read_line("> ", interactive);
+        line = shell_read_line("> ", interactive, &input_failed);
         if (line == NULL) {
+            if (input_failed) {
+                fprintf(stderr, "small-shell: heredoc input: %s\n",
+                    strerror(errno));
+                if (discard_heredoc(redir->target, interactive) != 0)
+                    ctx->shell->running = 0;
+                sb_free(&body);
+                return 1;
+            }
             fprintf(stderr,
                 "small-shell: warning: here-document delimited by end-of-file (wanted `%s')\n",
                 redir->target);
@@ -292,7 +303,7 @@ static int read_heredoc(struct exec_context *ctx, t_redir *redir)
         }
         if (append_heredoc_body_line(ctx->shell, quoted, &body, line) != 0) {
             free(line);
-            discard_heredoc(redir->target, interactive);
+            (void)discard_heredoc(redir->target, interactive);
             sb_free(&body);
             return 1;
         }
@@ -326,8 +337,9 @@ int exec_prepare_heredocs(struct exec_context *ctx, t_pipeline *pipelines)
                 if (redir->type == REDIR_HEREDOC) {
                     if (!failed && read_heredoc(ctx, redir) != 0)
                         failed = 1;
-                    else if (failed)
-                        discard_heredoc(redir->target, interactive);
+                    else if (failed
+                        && discard_heredoc(redir->target, interactive) != 0)
+                        failed = 1;
                 }
                 redir = redir->next;
             }

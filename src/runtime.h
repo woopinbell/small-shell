@@ -18,5 +18,6 @@ int     shell_open(const char *path, int flags, mode_t mode);
 int     shell_fflush(FILE *stream);
 int     shell_fseek(FILE *stream, long offset, int whence);
 int     shell_fileno(FILE *stream);
+ssize_t shell_read(int fd, void *buffer, size_t size);
 
 #endif

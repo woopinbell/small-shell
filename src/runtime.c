@@ -169,3 +169,8 @@ int shell_fileno(FILE *stream)
 {
     return fileno(stream);
 }
+
+ssize_t shell_read(int fd, void *buffer, size_t size)
+{
+    return read(fd, buffer, size);
+}
