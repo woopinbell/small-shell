@@ -19,5 +19,8 @@ int     shell_fflush(FILE *stream);
 int     shell_fseek(FILE *stream, long offset, int whence);
 int     shell_fileno(FILE *stream);
 ssize_t shell_read(int fd, void *buffer, size_t size);
+ssize_t shell_write(int fd, const void *buffer, size_t size);
+int     shell_write_all(int fd, const void *buffer, size_t size);
+int     shell_write_text(int fd, const char *text);
 
 #endif

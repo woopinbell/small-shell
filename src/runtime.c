@@ -174,3 +174,38 @@ ssize_t shell_read(int fd, void *buffer, size_t size)
 {
     return read(fd, buffer, size);
 }
+
+ssize_t shell_write(int fd, const void *buffer, size_t size)
+{
+    return write(fd, buffer, size);
+}
+
+int shell_write_all(int fd, const void *buffer, size_t size)
+{
+    const unsigned char *cursor;
+
+    cursor = (const unsigned char *)buffer;
+    while (size > 0) {
+        ssize_t written;
+
+        written = shell_write(fd, cursor, size);
+        if (written > 0) {
+            cursor += (size_t)written;
+            size -= (size_t)written;
+        } else if (written < 0 && errno == EINTR) {
+            continue;
+        } else {
+            if (written == 0)
+                errno = EIO;
+            return 1;
+        }
+    }
+    return 0;
+}
+
+int shell_write_text(int fd, const char *text)
+{
+    if (text == NULL)
+        return 0;
+    return shell_write_all(fd, text, strlen(text));
+}

@@ -1,6 +1,7 @@
 #define _POSIX_C_SOURCE 200809L
 
 #include "shell.h"
+#include "runtime.h"
 
 #include <errno.h>
 #include <stdio.h>
@@ -11,14 +12,7 @@
 int builtin_is_known(const char *name)
 {
     static const char *builtins[] = {
-        "echo",
-        "pwd",
-        "cd",
-        "env",
-        "export",
-        "unset",
-        "exit",
-        NULL
+        "echo", "pwd", "cd", "env", "export", "unset", "exit", NULL
     };
     size_t i;
 
@@ -38,14 +32,14 @@ int builtin_is_parent(const char *name)
 
 static int builtin_echo(char **argv)
 {
-    size_t i;
-    int newline;
+    size_t  i;
+    int     newline;
 
     newline = 1;
     i = 1;
     while (argv[i] != NULL && argv[i][0] == '-' && argv[i][1] == 'n') {
-        size_t j;
-        int only_n;
+        size_t  j;
+        int     only_n;
 
         only_n = 1;
         for (j = 1; argv[i][j] != '\0'; j++) {
@@ -59,16 +53,17 @@ static int builtin_echo(char **argv)
         newline = 0;
         i++;
     }
-
     while (argv[i] != NULL) {
-        fputs(argv[i], stdout);
-        if (argv[i + 1] != NULL)
-            fputc(' ', stdout);
+        if (shell_write_text(STDOUT_FILENO, argv[i]) != 0)
+            return 1;
+        if (argv[i + 1] != NULL
+            && shell_write_text(STDOUT_FILENO, " ") != 0)
+            return 1;
         i++;
     }
-    if (newline)
-        fputc('\n', stdout);
-    return ferror(stdout) ? 1 : 0;
+    if (newline && shell_write_text(STDOUT_FILENO, "\n") != 0)
+        return 1;
+    return 0;
 }
 
 static int builtin_pwd(void)
@@ -80,9 +75,14 @@ static int builtin_pwd(void)
         fprintf(stderr, "small-shell: pwd: %s\n", strerror(errno));
         return 1;
     }
-    printf("%s\n", cwd);
+    if (shell_write_text(STDOUT_FILENO, cwd) != 0
+        || shell_write_text(STDOUT_FILENO, "\n") != 0) {
+        fprintf(stderr, "small-shell: pwd: %s\n", strerror(errno));
+        free(cwd);
+        return 1;
+    }
     free(cwd);
-    return ferror(stdout) ? 1 : 0;
+    return 0;
 }
 
 static size_t argv_count(char **argv)
@@ -97,16 +97,16 @@ static size_t argv_count(char **argv)
 
 static int builtin_cd(t_shell *shell, char **argv)
 {
-    const char *target;
-    char *old_pwd;
-    char *new_pwd;
-    int print_target;
+    const char  *target;
+    char        *old_pwd;
+    char        *new_pwd;
+    int         print_target;
+    int         status;
 
     if (argv_count(argv) > 2) {
         fprintf(stderr, "small-shell: cd: too many arguments\n");
         return 1;
     }
-
     print_target = 0;
     if (argv[1] == NULL) {
         target = env_get(shell->env, "HOME");
@@ -124,7 +124,6 @@ static int builtin_cd(t_shell *shell, char **argv)
     } else {
         target = argv[1];
     }
-
     old_pwd = getcwd(NULL, 0);
     if (chdir(target) != 0) {
         fprintf(stderr, "small-shell: cd: %s: %s\n", target, strerror(errno));
@@ -132,15 +131,18 @@ static int builtin_cd(t_shell *shell, char **argv)
         return 1;
     }
     new_pwd = getcwd(NULL, 0);
-    if (old_pwd != NULL)
-        (void)env_set(&shell->env, "OLDPWD", old_pwd, 1);
-    if (new_pwd != NULL)
-        (void)env_set(&shell->env, "PWD", new_pwd, 1);
-    if (print_target && new_pwd != NULL)
-        printf("%s\n", new_pwd);
+    status = 0;
+    if (old_pwd != NULL && env_set(&shell->env, "OLDPWD", old_pwd, 1) != 0)
+        status = 1;
+    if (new_pwd != NULL && env_set(&shell->env, "PWD", new_pwd, 1) != 0)
+        status = 1;
+    if (print_target && new_pwd != NULL
+        && (shell_write_text(STDOUT_FILENO, new_pwd) != 0
+            || shell_write_text(STDOUT_FILENO, "\n") != 0))
+        status = 1;
     free(old_pwd);
     free(new_pwd);
-    return ferror(stdout) ? 1 : 0;
+    return status;
 }
 
 static int builtin_env(t_shell *shell, char **argv)
@@ -149,8 +151,7 @@ static int builtin_env(t_shell *shell, char **argv)
         fprintf(stderr, "small-shell: env: arguments are not supported\n");
         return 1;
     }
-    env_print(shell->env, 0);
-    return ferror(stdout) ? 1 : 0;
+    return env_print(shell->env, 0);
 }
 
 static int split_assignment(const char *arg, char **key, const char **value)
@@ -167,20 +168,32 @@ static int split_assignment(const char *arg, char **key, const char **value)
     return 0;
 }
 
-static int builtin_export(t_shell *shell, char **argv)
+static int valid_assignment_name(const char *key)
 {
     size_t i;
-    int status;
 
-    if (argv[1] == NULL) {
-        env_print(shell->env, 1);
-        return ferror(stdout) ? 1 : 0;
+    if (!sh_is_name_start((unsigned char)key[0]))
+        return 0;
+    i = 1;
+    while (key[i] != '\0') {
+        if (!sh_is_name_char((unsigned char)key[i]))
+            return 0;
+        i++;
     }
+    return 1;
+}
 
+static int builtin_export(t_shell *shell, char **argv)
+{
+    size_t  i;
+    int     status;
+
+    if (argv[1] == NULL)
+        return env_print(shell->env, 1);
     status = 0;
     for (i = 1; argv[i] != NULL; i++) {
-        char *key;
-        const char *value;
+        char        *key;
+        const char  *value;
 
         key = NULL;
         value = NULL;
@@ -188,27 +201,14 @@ static int builtin_export(t_shell *shell, char **argv)
             fprintf(stderr, "small-shell: export: allocation failure\n");
             return 1;
         }
-        if (!sh_is_name_start((unsigned char)key[0])) {
-            fprintf(stderr, "small-shell: export: `%s': not a valid identifier\n", argv[i]);
+        if (!valid_assignment_name(key)) {
+            fprintf(stderr,
+                "small-shell: export: `%s': not a valid identifier\n",
+                argv[i]);
             free(key);
             status = 1;
             continue;
         }
-        {
-            size_t j;
-
-            for (j = 1; key[j] != '\0'; j++) {
-                if (!sh_is_name_char((unsigned char)key[j])) {
-                    fprintf(stderr, "small-shell: export: `%s': not a valid identifier\n", argv[i]);
-                    free(key);
-                    key = NULL;
-                    status = 1;
-                    break;
-                }
-            }
-        }
-        if (key == NULL)
-            continue;
         if (env_set(&shell->env, key, value, 1) != 0) {
             fprintf(stderr, "small-shell: export: allocation failure\n");
             free(key);
@@ -230,8 +230,8 @@ static int builtin_unset(t_shell *shell, char **argv)
 
 static int parse_exit_status(const char *s, int *status)
 {
-    char *end;
-    long value;
+    char    *end;
+    long    value;
 
     errno = 0;
     value = strtol(s, &end, 10);
@@ -250,7 +250,8 @@ static int builtin_exit(t_shell *shell, char **argv)
         return shell->last_status;
     }
     if (!parse_exit_status(argv[1], &status)) {
-        fprintf(stderr, "small-shell: exit: %s: numeric argument required\n", argv[1]);
+        fprintf(stderr, "small-shell: exit: %s: numeric argument required\n",
+            argv[1]);
         shell->last_status = 2;
         shell->running = 0;
         return 2;

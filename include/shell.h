@@ -116,7 +116,7 @@ const char  *env_get(t_env *env, const char *key);
 int         env_set(t_env **env, const char *key, const char *value, int exported);
 int         env_unset(t_env **env, const char *key);
 char        **env_to_environ(t_env *env);
-void        env_print(t_env *env, int declare_style);
+int         env_print(t_env *env, int declare_style);
 int         shell_env_init(t_env *env, char **envp);
 void        shell_env_free(t_env *env);
 const char  *shell_env_get(const t_env *env, const char *key);

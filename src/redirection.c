@@ -163,8 +163,6 @@ int exec_run_parent_command(t_shell *shell, const t_command *command,
         status = 0;
     else
         status = builtin_run(shell, command->argv);
-    if (fflush(stdout) == EOF)
-        status = 1;
     {
         int restore_result;
 
