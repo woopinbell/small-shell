@@ -3,6 +3,7 @@
 #include "exec_internal.h"
 #include "runtime.h"
 
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -45,8 +46,11 @@ static int sb_reserve(struct strbuf *buf, size_t extra)
     needed = buf->len + extra + 1;
     if (needed <= buf->cap)
         return 0;
-    while (buf->cap < needed)
+    while (buf->cap < needed) {
+        if (buf->cap > SIZE_MAX / 2)
+            return 1;
         buf->cap *= 2;
+    }
     next = (char *)shell_realloc(buf->data, buf->cap);
     if (next == NULL)
         return 1;
@@ -165,6 +169,40 @@ static char *dequote_runtime_word(const char *word)
     return out.data;
 }
 
+static int delimiter_matches(const char *line, const char *encoded)
+{
+    size_t i;
+    size_t j;
+
+    i = 0;
+    j = 0;
+    while (encoded != NULL && encoded[i] != '\0') {
+        if (encoded[i] == LITERAL_MARK && encoded[i + 1] != '\0')
+            i++;
+        if (line[j] != encoded[i])
+            return 0;
+        i++;
+        j++;
+    }
+    return line[j] == '\0';
+}
+
+static void discard_heredoc(const char *delimiter, int interactive)
+{
+    for (;;) {
+        char *line;
+
+        line = shell_read_line("> ", interactive);
+        if (line == NULL)
+            return;
+        if (delimiter_matches(line, delimiter)) {
+            free(line);
+            return;
+        }
+        free(line);
+    }
+}
+
 static int append_heredoc_body_line(t_shell *shell, int quoted,
     struct strbuf *body, const char *line)
 {
@@ -225,15 +263,19 @@ static int read_heredoc(struct exec_context *ctx, t_redir *redir)
     int             quoted;
     int             interactive;
 
+    interactive = isatty(STDIN_FILENO) && isatty(STDERR_FILENO);
     quoted = redir->heredoc_quoted;
     delimiter = dequote_runtime_word(redir->target);
-    if (delimiter == NULL)
+    if (delimiter == NULL) {
+        discard_heredoc(redir->target, interactive);
         return 1;
+    }
     free(redir->target);
     redir->target = delimiter;
-    if (sb_init(&body) != 0)
+    if (sb_init(&body) != 0) {
+        discard_heredoc(redir->target, interactive);
         return 1;
-    interactive = isatty(STDIN_FILENO) && isatty(STDERR_FILENO);
+    }
     for (;;) {
         char *line;
 
@@ -250,6 +292,7 @@ static int read_heredoc(struct exec_context *ctx, t_redir *redir)
         }
         if (append_heredoc_body_line(ctx->shell, quoted, &body, line) != 0) {
             free(line);
+            discard_heredoc(redir->target, interactive);
             sb_free(&body);
             return 1;
         }
@@ -264,8 +307,12 @@ static int read_heredoc(struct exec_context *ctx, t_redir *redir)
 
 int exec_prepare_heredocs(struct exec_context *ctx, t_pipeline *pipelines)
 {
-    t_pipeline *pipeline;
+    t_pipeline  *pipeline;
+    int         failed;
+    int         interactive;
 
+    failed = 0;
+    interactive = isatty(STDIN_FILENO) && isatty(STDERR_FILENO);
     pipeline = pipelines;
     while (pipeline != NULL) {
         t_command *command;
@@ -276,11 +323,11 @@ int exec_prepare_heredocs(struct exec_context *ctx, t_pipeline *pipelines)
 
             redir = command->redirs;
             while (redir != NULL) {
-                if (redir->type == REDIR_HEREDOC
-                    && read_heredoc(ctx, redir) != 0) {
-                    fprintf(stderr,
-                        "small-shell: heredoc: allocation failure\n");
-                    return 1;
+                if (redir->type == REDIR_HEREDOC) {
+                    if (!failed && read_heredoc(ctx, redir) != 0)
+                        failed = 1;
+                    else if (failed)
+                        discard_heredoc(redir->target, interactive);
                 }
                 redir = redir->next;
             }
@@ -288,5 +335,7 @@ int exec_prepare_heredocs(struct exec_context *ctx, t_pipeline *pipelines)
         }
         pipeline = pipeline->next;
     }
-    return 0;
+    if (failed)
+        fprintf(stderr, "small-shell: heredoc: preparation failure\n");
+    return failed;
 }
