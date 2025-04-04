@@ -52,6 +52,7 @@ readline:
 test: $(TARGET) $(TEST_TARGET) $(PARSER_API_TARGET)
 	./tests/smoke.sh
 	./tests/faults.sh
+	./tests/allocation.sh
 	./$(PARSER_API_TARGET)
 
 clean:

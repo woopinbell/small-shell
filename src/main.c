@@ -1,6 +1,7 @@
 #define _POSIX_C_SOURCE 200809L
 
 #include "shell.h"
+#include "runtime.h"
 
 #include <errno.h>
 #include <stdio.h>
@@ -19,6 +20,7 @@ int main(int argc, char **argv, char **envp)
     (void)argc;
     (void)argv;
     errno = 0;
+    shell_runtime_set_alloc_scope("startup");
     shell.env = env_from_environ(envp);
     if (shell.env == NULL && envp != NULL && envp[0] != NULL
         && errno == ENOMEM) {

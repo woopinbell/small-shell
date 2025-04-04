@@ -213,6 +213,7 @@ static int expand_one_pipeline(t_shell *shell, t_pipeline *pipeline)
 
     next = pipeline->next;
     pipeline->next = NULL;
+    shell_runtime_set_alloc_scope("expand");
     result = expand_pipeline(shell, pipeline);
     pipeline->next = next;
     return result;
@@ -228,6 +229,7 @@ static int execute_one_pipeline(t_shell *shell, t_pipeline *pipeline, const stru
         fprintf(stderr, "small-shell: allocation failure\n");
         return 1;
     }
+    shell_runtime_set_alloc_scope("execute");
     command = pipeline->commands;
     if (pipeline->command_count == 1
         && (command->argc == 0 || builtin_is_parent(command->argv[0])))
@@ -262,6 +264,7 @@ int execute_pipeline_list(t_shell *shell, t_pipeline *pipeline)
 
     ctx.shell = shell;
     ctx.heredocs = NULL;
+    shell_runtime_set_alloc_scope("heredoc");
     return execute_pipeline_list_ctx(shell, pipeline, &ctx);
 }
 
@@ -282,7 +285,10 @@ int shell_process_line(t_shell *shell, const char *line)
     if (shell == NULL || line == NULL || line[0] == '\0')
         return shell != NULL ? shell->last_status : 1;
 
+    shell_runtime_begin_command();
+
     error = NULL;
+    shell_runtime_set_alloc_scope("token");
     errno = 0;
     tokens = tokenize_line(line, &error);
     if (error != NULL || (tokens == NULL && errno == ENOMEM)) {
@@ -294,6 +300,7 @@ int shell_process_line(t_shell *shell, const char *line)
         return shell->last_status;
     }
 
+    shell_runtime_set_alloc_scope("parser");
     errno = 0;
     pipelines = parse_tokens(tokens, &error);
     free_tokens(tokens);
@@ -310,6 +317,7 @@ int shell_process_line(t_shell *shell, const char *line)
 
     ctx.shell = shell;
     ctx.heredocs = NULL;
+    shell_runtime_set_alloc_scope("heredoc");
     if (exec_prepare_heredocs(&ctx, pipelines) != 0) {
         exec_heredoc_entries_free(ctx.heredocs);
         free_pipeline(pipelines);

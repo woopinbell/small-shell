@@ -12,6 +12,11 @@
 
 #ifdef SMALL_SHELL_TESTING
 
+static const char       *g_alloc_scope;
+static unsigned long    g_alloc_calls;
+static int              g_alloc_failed;
+static unsigned long    g_command_number;
+
 static int fail_call(const char *name, unsigned long *calls)
 {
     const char      *text;
@@ -40,10 +45,69 @@ static int fail_call(const char *name, unsigned long *calls)
     return target == *calls;
 }
 
+static int fail_allocation(void)
+{
+    const char      *command_text;
+    const char      *scope;
+    const char      *text;
+    char            *end;
+    unsigned long   target;
+    unsigned long   target_command;
+    int             repeat;
+
+    if (g_alloc_failed)
+        return 0;
+    command_text = getenv("SMALL_SHELL_FAIL_ALLOC_COMMAND");
+    target_command = command_text != NULL ? strtoul(command_text, NULL, 10) : 1;
+    if (target_command == 0 || g_command_number != target_command)
+        return 0;
+    scope = getenv("SMALL_SHELL_FAIL_ALLOC_SCOPE");
+    if (scope == NULL || g_alloc_scope == NULL
+        || strcmp(scope, g_alloc_scope) != 0)
+        return 0;
+    g_alloc_calls++;
+    text = getenv("SMALL_SHELL_FAIL_ALLOC");
+    target = 1;
+    if (text != NULL && text[0] != '\0') {
+        target = strtoul(text, &end, 10);
+        if (end == text || *end != '\0' || target == 0)
+            return 0;
+    }
+    repeat = getenv("SMALL_SHELL_FAIL_ALLOC_REPEAT") != NULL;
+    if ((!repeat && g_alloc_calls != target)
+        || (repeat && g_alloc_calls < target))
+        return 0;
+    if (!repeat)
+        g_alloc_failed = 1;
+    errno = ENOMEM;
+    return 1;
+}
+
 #endif
+
+void shell_runtime_begin_command(void)
+{
+#ifdef SMALL_SHELL_TESTING
+    g_command_number++;
+    g_alloc_calls = 0;
+#endif
+}
+
+void shell_runtime_set_alloc_scope(const char *scope)
+{
+#ifdef SMALL_SHELL_TESTING
+    g_alloc_scope = scope;
+#else
+    (void)scope;
+#endif
+}
 
 void *shell_malloc(size_t size)
 {
+#ifdef SMALL_SHELL_TESTING
+    if (fail_allocation())
+        return NULL;
+#endif
     return malloc(size);
 }
 
@@ -53,11 +117,19 @@ void *shell_calloc(size_t count, size_t size)
         errno = ENOMEM;
         return NULL;
     }
+#ifdef SMALL_SHELL_TESTING
+    if (fail_allocation())
+        return NULL;
+#endif
     return calloc(count, size);
 }
 
 void *shell_realloc(void *ptr, size_t size)
 {
+#ifdef SMALL_SHELL_TESTING
+    if (fail_allocation())
+        return NULL;
+#endif
     return realloc(ptr, size);
 }
 

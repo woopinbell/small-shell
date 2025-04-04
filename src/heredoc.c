@@ -194,6 +194,7 @@ static int discard_heredoc(const char *delimiter, int interactive)
         char    *line;
         int     failed;
 
+        shell_runtime_set_alloc_scope("input");
         line = shell_read_line("> ", interactive, &failed);
         if (line == NULL)
             return failed;
@@ -267,6 +268,7 @@ static int read_heredoc(struct exec_context *ctx, t_redir *redir)
     int             input_failed;
 
     interactive = isatty(STDIN_FILENO) && isatty(STDERR_FILENO);
+    shell_runtime_set_alloc_scope("heredoc");
     quoted = redir->heredoc_quoted;
     delimiter = dequote_runtime_word(redir->target);
     if (delimiter == NULL) {
@@ -282,6 +284,7 @@ static int read_heredoc(struct exec_context *ctx, t_redir *redir)
     for (;;) {
         char *line;
 
+        shell_runtime_set_alloc_scope("input");
         line = shell_read_line("> ", interactive, &input_failed);
         if (line == NULL) {
             if (input_failed) {
@@ -301,6 +304,7 @@ static int read_heredoc(struct exec_context *ctx, t_redir *redir)
             free(line);
             break;
         }
+        shell_runtime_set_alloc_scope("heredoc");
         if (append_heredoc_body_line(ctx->shell, quoted, &body, line) != 0) {
             free(line);
             (void)discard_heredoc(redir->target, interactive);
@@ -309,6 +313,7 @@ static int read_heredoc(struct exec_context *ctx, t_redir *redir)
         }
         free(line);
     }
+    shell_runtime_set_alloc_scope("heredoc");
     if (add_heredoc_entry(ctx, redir, body.data) != 0) {
         sb_free(&body);
         return 1;
