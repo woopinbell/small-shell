@@ -244,11 +244,27 @@ int shell_fileno(FILE *stream)
 
 ssize_t shell_read(int fd, void *buffer, size_t size)
 {
+#ifdef SMALL_SHELL_TESTING
+    static unsigned long calls;
+
+    if (fail_call("SMALL_SHELL_FAIL_READ", &calls)) {
+        errno = EIO;
+        return -1;
+    }
+#endif
     return read(fd, buffer, size);
 }
 
 ssize_t shell_write(int fd, const void *buffer, size_t size)
 {
+#ifdef SMALL_SHELL_TESTING
+    static unsigned long calls;
+
+    if (fail_call("SMALL_SHELL_FAIL_WRITE", &calls)) {
+        errno = EIO;
+        return -1;
+    }
+#endif
     return write(fd, buffer, size);
 }
 

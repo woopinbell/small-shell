@@ -59,6 +59,23 @@ EOF
     cmp -s "$TMP/$name.expected" "$TMP/$name.out" || fail "$name"
 }
 
+run_exit_fault()
+{
+    name=$1
+    variable=$2
+    call=$3
+    input=$4
+    expected_status=$5
+
+    set +e
+    printf '%s' "$input" | env "$variable=$call" "$BIN" \
+        >"$TMP/$name.out" 2>"$TMP/$name.err"
+    status=$?
+    set -e
+    [ "$status" -eq "$expected_status" ] || fail "$name"
+    [ ! -s "$TMP/$name.out" ] || fail "$name"
+}
+
 run_fault pipe_second SMALL_SHELL_FAIL_PIPE 2 \
     'printf alpha | cat | cat
 echo $?' \
@@ -192,6 +209,52 @@ echo after' \
     '1
 after
 '
+
+run_fault write_stdout SMALL_SHELL_FAIL_WRITE 1 \
+    'echo hidden
+echo $?' \
+    '1
+'
+
+run_exit_fault read_input SMALL_SHELL_FAIL_READ 1 \
+    'echo hidden
+' \
+    1
+
+run_fault heredoc_read_failure SMALL_SHELL_FAIL_READ 11 \
+    'cat <<EOF
+body
+EOF
+echo $?
+echo after' \
+    '1
+after
+'
+
+run_fault multiple_heredoc_read_failure SMALL_SHELL_FAIL_READ 17 \
+    'cat <<ONE <<TWO
+first
+ONE
+second
+TWO
+echo $?
+echo after' \
+    '1
+after
+'
+
+set +e
+printf 'cat <<EOF
+body
+EOF
+echo never
+' | env \
+    SMALL_SHELL_FAIL_READ=11 SMALL_SHELL_FAIL_READ_REPEAT=1 \
+    "$BIN" >"$TMP/persistent-read.out" 2>"$TMP/persistent-read.err"
+status=$?
+set -e
+[ "$status" -eq 1 ] || fail persistent-read
+[ ! -s "$TMP/persistent-read.out" ] || fail persistent-read
 
 set +e
 env SMALL_SHELL_FAIL_DUP2=2 SMALL_SHELL_FAIL_DUP2_REPEAT=1 \
