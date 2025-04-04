@@ -194,6 +194,13 @@ static int run_forked_pipeline(t_shell *shell, const t_pipeline *pipeline, const
 
     if (wait_error)
         result = 1;
+#ifdef SMALL_SHELL_TESTING
+    if (getenv("SMALL_SHELL_CHECK_CHILDREN") != NULL
+        && !shell_children_reaped()) {
+        fprintf(stderr, "small-shell: unreaped child process\n");
+        result = 1;
+    }
+#endif
     free(pids);
     free(pipes);
     return spawned == pipeline->command_count ? result : 1;

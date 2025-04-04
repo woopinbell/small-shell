@@ -172,6 +172,31 @@ pid_t shell_waitpid(pid_t pid, int *status, int options)
     return waitpid(pid, status, options);
 }
 
+#ifdef SMALL_SHELL_TESTING
+int shell_children_reaped(void)
+{
+    int     status;
+    int     found;
+    pid_t   pid;
+
+    found = 0;
+    for (;;) {
+        pid = waitpid(-1, &status, WNOHANG);
+        if (pid > 0) {
+            found = 1;
+            continue;
+        }
+        if (pid == 0)
+            return 0;
+        if (errno == EINTR)
+            continue;
+        if (errno == ECHILD)
+            return !found;
+        return 0;
+    }
+}
+#endif
+
 int shell_dup(int fd)
 {
 #ifdef SMALL_SHELL_TESTING
