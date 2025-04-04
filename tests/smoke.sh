@@ -3,6 +3,7 @@ set -eu
 
 ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 BIN=${SMALL_SHELL_BIN:-"$ROOT/small-shell"}
+TIMEOUT=${SMALL_SHELL_TIMEOUT_BIN:-"$ROOT/tests/timeout-runner"}
 TMP=$(mktemp -d "${TMPDIR:-/tmp}/small-shell.XXXXXX")
 TMP_PHYSICAL=$(CDPATH= cd -- "$TMP" && pwd -P)
 
@@ -29,8 +30,10 @@ run_case() {
     expected_stdout=$3
     expected_status=$4
 
+    printf "%s" "$input" >"$TMP/$name.in"
     set +e
-    printf "%s" "$input" | "$BIN" >"$TMP/$name.out" 2>"$TMP/$name.err"
+    "$TIMEOUT" 5 "$BIN" <"$TMP/$name.in" \
+        >"$TMP/$name.out" 2>"$TMP/$name.err"
     status=$?
     set -e
 
