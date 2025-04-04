@@ -38,6 +38,27 @@ EOF
     cmp -s "$TMP/$name.expected" "$TMP/$name.out" || fail "$name"
 }
 
+run_alloc_fault()
+{
+    name=$1
+    scope=$2
+    call=$3
+    input=$4
+    expected=$5
+
+    set +e
+    env SMALL_SHELL_FAIL_ALLOC_SCOPE="$scope" \
+        SMALL_SHELL_FAIL_ALLOC="$call" \
+        "$BIN" >"$TMP/$name.out" 2>"$TMP/$name.err" <<EOF
+$input
+EOF
+    status=$?
+    set -e
+    [ "$status" -eq 0 ] || fail "$name"
+    printf '%s' "$expected" >"$TMP/$name.expected"
+    cmp -s "$TMP/$name.expected" "$TMP/$name.out" || fail "$name"
+}
+
 run_fault pipe_second SMALL_SHELL_FAIL_PIPE 2 \
     'printf alpha | cat | cat
 echo $?' \
@@ -118,6 +139,54 @@ run_fault heredoc_seek SMALL_SHELL_FAIL_FSEEK 1 \
     'cat <<EOF
 body
 EOF
+echo $?
+echo after' \
+    '1
+after
+'
+
+run_alloc_fault alloc_token token 1 \
+    'echo hidden
+echo $?
+echo after' \
+    '1
+after
+'
+
+run_alloc_fault alloc_parser_node parser 1 \
+    'echo hidden
+echo $?
+echo after' \
+    '1
+after
+'
+
+run_alloc_fault alloc_parser_argument parser 4 \
+    'echo hidden
+echo $?
+echo after' \
+    '1
+after
+'
+
+run_alloc_fault alloc_expand expand 2 \
+    'echo hidden
+echo $?
+echo after' \
+    '1
+after
+'
+
+run_alloc_fault alloc_parent_builtin execute 4 \
+    'export ALLOC_TEST=value
+echo $?
+echo after' \
+    '1
+after
+'
+
+run_alloc_fault alloc_external_env execute 2 \
+    'true
 echo $?
 echo after' \
     '1

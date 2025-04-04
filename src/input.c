@@ -106,6 +106,7 @@ void shell_loop(t_shell *shell)
     while (shell->running) {
         int failed;
 
+        shell_runtime_set_alloc_scope("command-input");
         line = shell_read_line("small-shell$ ", interactive, &failed);
         if (line == NULL) {
             if (failed) {

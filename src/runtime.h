@@ -6,6 +6,8 @@
 # include <sys/types.h>
 # include <sys/stat.h>
 
+void    shell_runtime_begin_command(void);
+void    shell_runtime_set_alloc_scope(const char *scope);
 void    *shell_malloc(size_t size);
 void    *shell_calloc(size_t count, size_t size);
 void    *shell_realloc(void *ptr, size_t size);
