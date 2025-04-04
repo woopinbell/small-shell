@@ -117,14 +117,7 @@ int         env_set(t_env **env, const char *key, const char *value, int exporte
 int         env_unset(t_env **env, const char *key);
 char        **env_to_environ(t_env *env);
 int         env_print(t_env *env, int declare_style);
-int         shell_env_init(t_env *env, char **envp);
-void        shell_env_free(t_env *env);
-const char  *shell_env_get(const t_env *env, const char *key);
-int         shell_env_set(t_env *env, const char *key, const char *value, int exported);
-int         shell_env_unset(t_env *env, const char *key);
 int         shell_env_is_valid_name(const char *key);
-char        **shell_env_export_list(t_env *env);
-char        **shell_env_to_envp(t_env *env);
 
 char        *expand_word(t_shell *shell, const char *word);
 int         expand_pipeline(t_shell *shell, t_pipeline *pipeline);
