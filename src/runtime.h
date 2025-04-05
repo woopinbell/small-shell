@@ -14,6 +14,9 @@ void    *shell_realloc(void *ptr, size_t size);
 int     shell_pipe(int fds[2]);
 pid_t   shell_fork(void);
 pid_t   shell_waitpid(pid_t pid, int *status, int options);
+#ifdef SMALL_SHELL_TESTING
+int     shell_children_reaped(void);
+#endif
 int     shell_dup(int fd);
 int     shell_dup2(int oldfd, int newfd);
 int     shell_open(const char *path, int flags, mode_t mode);

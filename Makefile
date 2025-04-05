@@ -57,6 +57,7 @@ test: $(TARGET) $(TEST_TARGET) $(PARSER_API_TARGET) $(TIMEOUT_TARGET)
 	./tests/smoke.sh
 	./tests/faults.sh
 	./tests/allocation.sh
+	./tests/lifecycle.sh
 	./$(PARSER_API_TARGET)
 
 clean:
