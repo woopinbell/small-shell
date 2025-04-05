@@ -22,6 +22,7 @@ OBJS := $(SRCS:.c=.o)
 TEST_OBJS := $(SRCS:.c=.test.o)
 TEST_TARGET := small-shell-test
 PARSER_API_TARGET := tests/parser-api
+TIMEOUT_TARGET := tests/timeout-runner
 
 ifeq ($(USE_READLINE),1)
 CPPFLAGS += -DUSE_READLINE
@@ -46,16 +47,20 @@ $(PARSER_API_TARGET): tests/parser_api.c $(filter-out src/main.c,$(SRCS))
 	$(CC) $(CPPFLAGS) $(CFLAGS) $(LDFLAGS) -o $@ \
 		tests/parser_api.c $(filter-out src/main.c,$(SRCS)) $(LDLIBS)
 
+$(TIMEOUT_TARGET): tests/timeout_runner.c
+	$(CC) $(CPPFLAGS) $(CFLAGS) -o $@ $<
+
 readline:
 	$(MAKE) USE_READLINE=1
 
-test: $(TARGET) $(TEST_TARGET) $(PARSER_API_TARGET)
+test: $(TARGET) $(TEST_TARGET) $(PARSER_API_TARGET) $(TIMEOUT_TARGET)
 	./tests/smoke.sh
 	./tests/faults.sh
 	./tests/allocation.sh
 	./$(PARSER_API_TARGET)
 
 clean:
-	rm -f $(TARGET) $(TEST_TARGET) $(PARSER_API_TARGET) $(OBJS) $(TEST_OBJS)
+	rm -f $(TARGET) $(TEST_TARGET) $(PARSER_API_TARGET) $(TIMEOUT_TARGET) \
+		$(OBJS) $(TEST_OBJS)
 
 .PHONY: all readline test clean

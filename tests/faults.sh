@@ -3,6 +3,7 @@ set -eu
 
 ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 BIN=${SMALL_SHELL_TEST_BIN:-"$ROOT/small-shell-test"}
+TIMEOUT=${SMALL_SHELL_TIMEOUT_BIN:-"$ROOT/tests/timeout-runner"}
 TMP=$(mktemp -d "${TMPDIR:-/tmp}/small-shell-faults.XXXXXX")
 
 trap 'rm -rf "$TMP"' EXIT HUP INT TERM
@@ -28,7 +29,8 @@ run_fault()
     expected=$5
 
     set +e
-    env "$variable=$call" "$BIN" >"$TMP/$name.out" 2>"$TMP/$name.err" <<EOF
+    env "$variable=$call" "$TIMEOUT" 5 "$BIN" \
+        >"$TMP/$name.out" 2>"$TMP/$name.err" <<EOF
 $input
 EOF
     status=$?
@@ -49,7 +51,7 @@ run_alloc_fault()
     set +e
     env SMALL_SHELL_FAIL_ALLOC_SCOPE="$scope" \
         SMALL_SHELL_FAIL_ALLOC="$call" \
-        "$BIN" >"$TMP/$name.out" 2>"$TMP/$name.err" <<EOF
+        "$TIMEOUT" 5 "$BIN" >"$TMP/$name.out" 2>"$TMP/$name.err" <<EOF
 $input
 EOF
     status=$?
@@ -68,8 +70,9 @@ run_exit_fault()
     expected_status=$5
 
     set +e
-    printf '%s' "$input" | env "$variable=$call" "$BIN" \
-        >"$TMP/$name.out" 2>"$TMP/$name.err"
+    printf '%s' "$input" >"$TMP/$name.in"
+    env "$variable=$call" "$TIMEOUT" 5 "$BIN" \
+        <"$TMP/$name.in" >"$TMP/$name.out" 2>"$TMP/$name.err"
     status=$?
     set -e
     [ "$status" -eq "$expected_status" ] || fail "$name"
@@ -248,17 +251,20 @@ printf 'cat <<EOF
 body
 EOF
 echo never
-' | env \
+' >"$TMP/persistent-read.in"
+env \
     SMALL_SHELL_FAIL_READ=11 SMALL_SHELL_FAIL_READ_REPEAT=1 \
-    "$BIN" >"$TMP/persistent-read.out" 2>"$TMP/persistent-read.err"
+    "$TIMEOUT" 5 "$BIN" <"$TMP/persistent-read.in" \
+    >"$TMP/persistent-read.out" 2>"$TMP/persistent-read.err"
 status=$?
 set -e
 [ "$status" -eq 1 ] || fail persistent-read
 [ ! -s "$TMP/persistent-read.out" ] || fail persistent-read
 
+
 set +e
 env SMALL_SHELL_FAIL_DUP2=2 SMALL_SHELL_FAIL_DUP2_REPEAT=1 \
-    "$BIN" >"$TMP/persistent-restore.out" \
+    "$TIMEOUT" 5 "$BIN" >"$TMP/persistent-restore.out" \
     2>"$TMP/persistent-restore.err" <<EOF
 echo hidden > $TMP/persistent-restore-file
 echo never

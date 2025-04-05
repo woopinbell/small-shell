@@ -3,6 +3,7 @@ set -eu
 
 ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 BIN=${SMALL_SHELL_TEST_BIN:-"$ROOT/small-shell-test"}
+TIMEOUT=${SMALL_SHELL_TIMEOUT_BIN:-"$ROOT/tests/timeout-runner"}
 TMP=$(mktemp -d "${TMPDIR:-/tmp}/small-shell-allocation.XXXXXX")
 
 trap 'rm -rf "$TMP"' EXIT HUP INT TERM
@@ -33,15 +34,17 @@ sweep()
 
     printf '%s' "$failed_output" >"$TMP/$name.failed"
     printf '%s' "$successful_output" >"$TMP/$name.success"
+    printf '%s' "$input" >"$TMP/$name.in"
     while [ "$call" -le "$maximum" ]; do
         set +e
-        printf '%s' "$input" | env -i \
+        env -i \
             PATH="$PATH" \
             ALLOC_SWEEP=old \
             HEREDOC_VALUE=expanded \
             SMALL_SHELL_FAIL_ALLOC_SCOPE="$scope" \
             SMALL_SHELL_FAIL_ALLOC="$call" \
-            "$BIN" >"$TMP/$name.out" 2>"$TMP/$name.err"
+            "$TIMEOUT" 5 "$BIN" <"$TMP/$name.in" \
+            >"$TMP/$name.out" 2>"$TMP/$name.err"
         status=$?
         set -e
         [ "$status" -eq 0 ] || fail "$name"
@@ -185,24 +188,29 @@ after
 '
 
 set +e
-printf 'cat <<EOF\nbody\nEOF\necho never\n' | env -i \
+printf 'cat <<EOF\nbody\nEOF\necho never\n' >"$TMP/persistent-input.in"
+env -i \
     PATH="$PATH" \
     SMALL_SHELL_FAIL_ALLOC_SCOPE=input \
     SMALL_SHELL_FAIL_ALLOC=1 \
     SMALL_SHELL_FAIL_ALLOC_REPEAT=1 \
-    "$BIN" >"$TMP/persistent-input.out" 2>"$TMP/persistent-input.err"
+    "$TIMEOUT" 5 "$BIN" <"$TMP/persistent-input.in" \
+    >"$TMP/persistent-input.out" 2>"$TMP/persistent-input.err"
 status=$?
 set -e
 [ "$status" -eq 1 ] || fail persistent-input
 [ ! -s "$TMP/persistent-input.out" ] || fail persistent-input
 
+
 set +e
-printf 'echo hidden\n' | env -i \
+printf 'echo hidden\n' >"$TMP/persistent.in"
+env -i \
     PATH="$PATH" \
     SMALL_SHELL_FAIL_ALLOC_SCOPE=token \
     SMALL_SHELL_FAIL_ALLOC=1 \
     SMALL_SHELL_FAIL_ALLOC_REPEAT=1 \
-    "$BIN" >"$TMP/persistent.out" 2>"$TMP/persistent.err"
+    "$TIMEOUT" 5 "$BIN" <"$TMP/persistent.in" \
+    >"$TMP/persistent.out" 2>"$TMP/persistent.err"
 status=$?
 set -e
 [ "$status" -eq 1 ] || fail persistent
