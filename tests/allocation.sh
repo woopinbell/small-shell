@@ -39,6 +39,8 @@ sweep()
         set +e
         env -i \
             PATH="$PATH" \
+            ASAN_OPTIONS="${ASAN_OPTIONS-}" \
+            UBSAN_OPTIONS="${UBSAN_OPTIONS-}" \
             ALLOC_SWEEP=old \
             HEREDOC_VALUE=expanded \
             SMALL_SHELL_FAIL_ALLOC_SCOPE="$scope" \
@@ -191,6 +193,8 @@ set +e
 printf 'cat <<EOF\nbody\nEOF\necho never\n' >"$TMP/persistent-input.in"
 env -i \
     PATH="$PATH" \
+    ASAN_OPTIONS="${ASAN_OPTIONS-}" \
+    UBSAN_OPTIONS="${UBSAN_OPTIONS-}" \
     SMALL_SHELL_FAIL_ALLOC_SCOPE=input \
     SMALL_SHELL_FAIL_ALLOC=1 \
     SMALL_SHELL_FAIL_ALLOC_REPEAT=1 \
@@ -206,6 +210,8 @@ set +e
 printf 'echo hidden\n' >"$TMP/persistent.in"
 env -i \
     PATH="$PATH" \
+    ASAN_OPTIONS="${ASAN_OPTIONS-}" \
+    UBSAN_OPTIONS="${UBSAN_OPTIONS-}" \
     SMALL_SHELL_FAIL_ALLOC_SCOPE=token \
     SMALL_SHELL_FAIL_ALLOC=1 \
     SMALL_SHELL_FAIL_ALLOC_REPEAT=1 \
