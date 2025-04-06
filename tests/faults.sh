@@ -2,8 +2,8 @@
 set -eu
 
 ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
-BIN=${SMALL_SHELL_TEST_BIN:-"$ROOT/small-shell-test"}
-TIMEOUT=${SMALL_SHELL_TIMEOUT_BIN:-"$ROOT/tests/timeout-runner"}
+BIN=${SMALL_SHELL_TEST_BIN:-"$ROOT/build/test/small-shell-test"}
+TIMEOUT=${SMALL_SHELL_TIMEOUT_BIN:-"$ROOT/build/test/timeout-runner"}
 TMP=$(mktemp -d "${TMPDIR:-/tmp}/small-shell-faults.XXXXXX")
 
 trap 'rm -rf "$TMP"' EXIT HUP INT TERM
