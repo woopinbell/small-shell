@@ -1,7 +1,7 @@
 #include "shell.h"
+#include "string_builder.h"
 
 #include <stdlib.h>
-#include <string.h>
 
 #define LITERAL_MARK '\001'
 
@@ -62,31 +62,19 @@ static int is_shell_space(char c)
         || c == '\r' || c == '\v' || c == '\f');
 }
 
-static char *append_char(char *word, char c)
+static int append_literal(t_string_builder *word, char c)
 {
-    char buf[2];
-
-    buf[0] = c;
-    buf[1] = '\0';
-    return sh_strjoin_free(word, buf);
-}
-
-static char *append_literal(char *word, char c)
-{
-    word = append_char(word, LITERAL_MARK);
-    if (word == NULL)
-        return NULL;
-    return append_char(word, c);
+    return (string_builder_append_char(word, LITERAL_MARK) != 0
+        || string_builder_append_char(word, c) != 0);
 }
 
 static char *read_word(const char *line, size_t *i, char **error,
         int *quoted)
 {
-    char    *word;
-    char    quote;
+    t_string_builder    word;
+    char                quote;
 
-    word = sh_strdup("");
-    if (word == NULL)
+    if (string_builder_init(&word) != 0)
         return NULL;
     *quoted = 0;
     while (line[*i] != '\0' && !is_shell_space(line[*i])
@@ -96,28 +84,33 @@ static char *read_word(const char *line, size_t *i, char **error,
             *quoted = 1;
             (*i)++;
             while (line[*i] != '\0' && line[*i] != quote) {
+                int failed;
+
                 if (quote == '\'')
-                    word = append_literal(word, line[*i]);
+                    failed = append_literal(&word, line[*i]);
                 else
-                    word = append_char(word, line[*i]);
-                if (word == NULL)
+                    failed = string_builder_append_char(&word, line[*i]);
+                if (failed != 0) {
+                    string_builder_discard(&word);
                     return NULL;
+                }
                 (*i)++;
             }
             if (line[*i] == '\0') {
-                free(word);
+                string_builder_discard(&word);
                 set_error(error, "syntax error: unclosed quote");
                 return NULL;
             }
             (*i)++;
         } else {
-            word = append_char(word, line[*i]);
-            if (word == NULL)
+            if (string_builder_append_char(&word, line[*i]) != 0) {
+                string_builder_discard(&word);
                 return NULL;
+            }
             (*i)++;
         }
     }
-    return word;
+    return string_builder_take(&word);
 }
 
 static int push_word(const char *line, size_t *i, char **error,
