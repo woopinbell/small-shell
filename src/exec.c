@@ -157,6 +157,7 @@ static int run_forked_pipeline(t_shell *shell, const t_pipeline *pipeline, const
                 fprintf(stderr, "small-shell: pipe: %s\n", strerror(errno));
                 close_pipes(pipes, pipe_count);
                 free(pipes);
+                free(pids);
                 return 1;
             }
         }
