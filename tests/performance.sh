@@ -2,8 +2,8 @@
 set -eu
 
 ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
-BIN=${SMALL_SHELL_BIN:-"$ROOT/small-shell"}
-TIMEOUT=${SMALL_SHELL_TIMEOUT_BIN:-"$ROOT/tests/timeout-runner"}
+BIN=${SMALL_SHELL_BIN:-"$ROOT/build/bin/small-shell"}
+TIMEOUT=${SMALL_SHELL_TIMEOUT_BIN:-"$ROOT/build/test/timeout-runner"}
 TMP=$(mktemp -d "${TMPDIR:-/tmp}/small-shell-performance.XXXXXX")
 PAYLOAD_SIZE=524288
 
