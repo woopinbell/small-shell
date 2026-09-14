@@ -35,6 +35,10 @@ static size_t word_count(char **argv)
     return n;
 }
 
+// [INTV:TRADE_OFF] 인자를 추가할 때마다 argv 배열 전체를 새로 calloc해서 복사한다 —
+// 명령당 인자 수가 O(n)일 때 전체가 O(n^2)이 되는 대가를 감수하고, 대신 t_command에
+// "용량(capacity)"을 따로 추적하는 필드/성장 로직이 없어 구조체가 단순해진다. 셸 명령 한
+// 줄의 인자 개수는 사실상 작기 때문에 이 비효율이 체감되지 않는다.
 static int add_arg(t_command *cmd, const char *text)
 {
     size_t  n;
@@ -79,6 +83,10 @@ static int add_redir(t_command *cmd, t_redir_type type, const char *target,
     }
     node->type = type;
     node->heredoc_quoted = (type == REDIR_HEREDOC && target_quoted);
+    // [INTV:ARCH] - [TRAP] 리다이렉션은 리스트 맨 끝에 이어붙인다(맨 앞이 아니라). 뒤에서
+    // exec_apply_redirections()가 이 리스트를 순서대로 처리하며 각 fd를 계속 갈아치우므로
+    // `> a > b`처럼 같은 방향 리다이렉트가 여러 번 나오면 "마지막에 적용된 것이 이긴다"는
+    // bash 동작이 성립한다 — 순서를 뒤집으면 정반대 결과가 나온다.
     if (cmd->redirs == NULL) {
         cmd->redirs = node;
         return 0;
@@ -147,6 +155,9 @@ static t_connector connector_type(t_token_type type)
     return CONN_SEQ;
 }
 
+// [INTV:ARCH] 파싱 도중 어디서 실패하든 지금까지 만든 cmd/pipeline/head를 전부 한 곳에서
+// 해제하고 NULL을 반환하는 공용 실패 경로. 이게 없으면 parse_tokens() 안의 실패 분기마다
+// 세 가지 자원을 각각 해제하는 코드를 반복해야 해서 하나라도 빠뜨리기 쉽다.
 static t_pipeline *parse_failure(t_pipeline *head, t_pipeline *pipeline,
         t_command *cmd, char **error, const char *message)
 {
@@ -157,6 +168,12 @@ static t_pipeline *parse_failure(t_pipeline *head, t_pipeline *pipeline,
     return NULL;
 }
 
+// [INTV:ARCH] - [FLOW] 토큰 스트림을 단일 패스로 훑으며 세 단계 구조(sequence -> pipeline
+// -> command)를 동시에 조립한다: 1. TOK_WORD는 현재 cmd에 인자로 누적 -> 2. 리다이렉션
+// 토큰은 다음 토큰을 타깃으로 삼아 cmd에 붙임 -> 3. '|'는 현재 cmd를 pipeline에 매듭짓고
+// 새 cmd를 염 -> 4. ';'/'&&'/'||'는 현재 pipeline을 sequence에 매듭짓고 새 pipeline을 염.
+// 별도의 재귀 하강 파서 대신 순차 상태 전이로 처리한 이유는 이 문법이 중첩이 없는
+// (괄호·서브셸 없음) 평평한 구조라 상태 머신만으로 충분하기 때문이다.
 t_pipeline *parse_tokens(t_token *tokens, char **error)
 {
     t_pipeline  *head;
@@ -237,6 +254,10 @@ t_pipeline *parse_tokens(t_token *tokens, char **error)
     else
         free_commands(cmd);
     cmd = NULL;
+    // [INTV:EDGE] 마지막 pipeline이 비어 있는 채로 루프를 빠져나오는 경우가 두 가지다:
+    // "echo 1 &&"처럼 조건 연산자 뒤에 아무것도 없으면 문법 오류지만, "echo 1;"처럼 트레일링
+    // 세미콜론 뒤에 아무것도 없는 건 bash에서도 허용되는 정상 입력이다. last_connector로 둘을
+    // 구분해서 후자일 때만 빈 pipeline을 조용히 버린다.
     if (pipeline->commands == NULL) {
         free(pipeline);
         if (last_connector == TOK_AND || last_connector == TOK_OR) {
@@ -350,6 +371,12 @@ int shell_parse_line(const char *line, t_sequence *sequence, char **error)
     return 0;
 }
 
+// [INTV:ARCH] '&&'/'||'/';' 게이트를 pipeline 하나 실행할 때마다 검사하는 짧은 순회 루프로
+// 처리한다 — 조건 연산자를 트리로 만들지 않고, "직전 pipeline의 next_op가 뭐였는지 + 직전
+// 종료 status"만으로 다음 pipeline을 건너뛸지 결정하는 평평한 게이트 방식을 택했다.
+// - [FLOW] 1. gate가 CONN_AND인데 직전 status != 0이면 스킵 -> 2. gate가 CONN_OR인데
+//   직전 status == 0이면 스킵 -> 3. 그 외에는 실행하고 status 갱신 -> 4. 이 pipeline의
+//   next_op를 다음 반복의 gate로 넘김.
 int shell_execute_sequence(const t_sequence *sequence, t_env *env,
         int *last_status, const t_executor_hooks *hooks, void *ctx)
 {

@@ -46,6 +46,10 @@ char *sh_substr(const char *s, size_t start, size_t len)
     return out;
 }
 
+// [INTV:ARCH] left를 성공/실패 양쪽 경로 모두에서 free한다("_free" 접미사가 그 계약을
+// 알린다) — 호출부(env.c의 env_to_environ 등)가 `pair = sh_strjoin_free(sh_strdup(k), "=")`
+// 처럼 이어붙이기 체인을 짤 때, 중간 결과를 따로 잡아뒀다가 매번 free하지 않아도 되게
+// 하기 위한 소유권 이전(consume) 방식의 API다.
 char *sh_strjoin_free(char *left, const char *right)
 {
     size_t  a;

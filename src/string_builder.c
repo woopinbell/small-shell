@@ -34,6 +34,12 @@ void string_builder_discard(t_string_builder *builder)
     builder->capacity = 0;
 }
 
+// [INTV:PERF] - [TRAP] 용량을 1씩 늘리지 않고 배로(*2) 키운다 — 토큰 하나를 한 글자씩
+// append하는 호출부(token.c read_word 등)가 매번 realloc하지 않도록 상환 O(1) 성장을 보장한다.
+// 다만 needed가 이미 capacity*2보다 크면(한 번에 큰 텍스트를 append) capacity를 needed까지
+// 바로 끌어올린다 — 그렇지 않으면 필요한 크기를 넘을 때까지 배로 늘리는 루프를 여러 번 돌아야
+// 한다. extra 오버플로 체크(SIZE_MAX - length - 1)가 배로 늘리기 전에 있어야 capacity *= 2
+// 자체가 SIZE_MAX를 넘어 wrap되는 걸 막는다.
 static int string_builder_reserve(t_string_builder *builder, size_t extra)
 {
     size_t  needed;

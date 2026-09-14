@@ -50,6 +50,11 @@ int shell_env_is_valid_name(const char *key)
     return 1;
 }
 
+// [INTV:ARCH] envp의 각 항목을 그대로 저장하지 않고, exported=1로 표시해서 t_env 리스트에
+// 옮겨 담는다 — 프로세스가 물려받은 환경변수는 전부 "이미 export된 상태"로 취급해야, 이후
+// env_to_environ()이 자식에게 환경을 다시 넘겨줄 때 원래 있던 변수들이 자연스럽게 포함된다.
+// - [TRAP] '='가 없는 envp 항목(비정상적이지만 이론상 가능)은 조용히 건너뛴다 — key를 뽑을
+//   기준이 없는 항목을 강제로 파싱하면 오히려 잘못된 변수를 만들어내게 된다.
 t_env *env_from_environ(char **envp)
 {
     t_env   *head;
@@ -101,6 +106,9 @@ void env_free(t_env *env)
     }
 }
 
+// [INTV:EDGE] 존재하지 않는 키에 대해 NULL이 아니라 ""(빈 문자열)를 반환한다 — 호출부
+// (expand.c 등)가 매번 NULL 체크를 하지 않고 바로 문자열 함수에 넘길 수 있게 하기 위함이며,
+// bash가 미설정 변수를 빈 문자열로 취급하는 것과도 일치한다.
 const char *env_get(t_env *env, const char *key)
 {
     t_env *node;
@@ -111,6 +119,9 @@ const char *env_get(t_env *env, const char *key)
     return node->value;
 }
 
+// [INTV:EDGE] value가 NULL이면 값은 건드리지 않고 exported 플래그만 세운다 — `export EXISTING`
+// (이미 값이 있는 변수를 export만 하는 경우)이 그 값을 빈 문자열로 지워버리지 않게 하는
+// 분기다. 새 변수를 만들 때는 env_new()에서 NULL을 ""로 정규화하므로 이 구분이 필요 없다.
 int env_set(t_env **env, const char *key, const char *value, int exported)
 {
     t_env *node;
@@ -172,6 +183,9 @@ int env_unset(t_env **env, const char *key)
     return 0;
 }
 
+// [INTV:ARCH] exported == 0인 변수(export되지 않은 셸 로컬 변수)는 자식에게 물려줄 environ
+// 배열에서 제외한다 — export되지 않은 변수는 이 셸 프로세스 안에서만 보이는 것이 셸의
+// 기본 규칙이라, execvp로 넘어갈 자식 프로세스의 환경에는 포함되면 안 된다.
 char **env_to_environ(t_env *env)
 {
     size_t  count;
@@ -208,6 +222,10 @@ char **env_to_environ(t_env *env)
     return out;
 }
 
+// [INTV:EDGE] declare_style(export -p처럼 `declare -x KEY="value"` 형식)과 env 스타일
+// (`KEY=value`)을 하나의 함수에서 플래그로 나눠 처리한다 — export와 env 두 빌트인이 순회
+// 로직(exported 변수만, 순서대로)은 완전히 같고 출력 포맷만 다르기 때문에, 순회를 두 번
+// 구현하지 않고 여기 하나로 합쳤다.
 int env_print(t_env *env, int declare_style)
 {
     while (env != NULL) {

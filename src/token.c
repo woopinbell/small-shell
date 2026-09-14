@@ -3,6 +3,12 @@
 
 #include <stdlib.h>
 
+// [INTV:ARCH] 토큰의 word 텍스트 안에, 작은따옴표로 감싸져서 "나중에 $변수 확장을 하면 안
+// 되는" 문자를 표시할 별도 메타데이터 구조 대신, 그 문자 바로 앞에 이 sentinel 바이트를
+// 끼워 넣는 인코딩을 쓴다. 셸 입력에 원래 나타날 수 없는 제어문자(\001)라서 실제 데이터와
+// 충돌하지 않는다.
+// - [TRAP] expand.c/heredoc.c/exec.c 세 곳 모두 이 LITERAL_MARK를 알아야 한다 — 이 마크를
+//   모르고 word 문자열을 그대로 출력하거나 비교하면 \001이 섞인 채로 새어나간다.
 #define LITERAL_MARK '\001'
 
 static void set_error(char **error, const char *message)
@@ -68,6 +74,10 @@ static int append_literal(t_string_builder *word, char c)
         || string_builder_append_char(word, c) != 0);
 }
 
+// [INTV:ARCH] 작은따옴표와 큰따옴표를 여기서부터 다르게 취급한다: 작은따옴표 안 문자는
+// append_literal로 LITERAL_MARK를 붙여 "나중에도 확장 대상이 아님"을 새기고, 큰따옴표 안
+// 문자는 그냥 append_char로 넣어 나중에 expand_word()가 $변수 확장을 하게 놔둔다. 즉 따옴표
+// 종류에 따른 확장 여부 차이를 여기서 인코딩해두고, 실제 확장은 expand 단계로 미룬다.
 static char *read_word(const char *line, size_t *i, char **error,
         int *quoted)
 {
@@ -156,6 +166,9 @@ t_token *tokenize_line(const char *line, char **error)
             failed = push_operator(&head, &tail, TOK_AND, "&&", i);
             i += 2;
         } else if (line[i] == '&') {
+            // [INTV:ARCH] 배경 실행(`cmd &`)은 이 셸의 지원 범위 밖이라, 토크나이저 단계에서
+            // 바로 에러로 끊는다 — 파서까지 넘겨서 애매하게 무시되거나 잘못 해석되는 것보다,
+            // 지원하지 않는 문법임을 최대한 이른 단계에서 명확히 알리는 편을 택했다.
             set_error(error, "syntax error: unsupported operator '&'");
             free_tokens(head);
             return NULL;

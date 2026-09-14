@@ -25,11 +25,19 @@ int builtin_is_known(const char *name)
     return 0;
 }
 
+// [INTV:ARCH] 이 셸에서는 "부모 프로세스 안에서 실행해야 하는 빌트인"과 "알려진 빌트인
+// 이름"이 사실상 같은 집합이라 builtin_is_parent()가 그냥 builtin_is_known()을 그대로
+// 위임한다 — 함수를 따로 나눈 이유는, 만약 나중에 (예를 들어 파이프라인의 일부가 아닐 때만
+// 부모에서 도는 빌트인처럼) 두 집합이 갈라지는 요구가 생기면 호출부(exec.c) 코드는 그대로
+// 두고 이 함수 안의 판단만 바꾸면 되게 하기 위함이다.
 int builtin_is_parent(const char *name)
 {
     return builtin_is_known(name);
 }
 
+// [INTV:EDGE] `-n` 옵션은 문자가 전부 'n'으로만 이루어진 경우에만(`-n`, `-nn`, ...) 인식하고,
+// `-ne`처럼 다른 문자가 섞이면 옵션이 아니라 첫 인자로 취급해 멈춘다 — bash의 echo 빌트인이
+// 옵션 파싱을 느슨하게 하는 방식을 그대로 따른 것.
 static int builtin_echo(char **argv)
 {
     size_t  i;
@@ -70,6 +78,9 @@ static int builtin_pwd(void)
 {
     char *cwd;
 
+    // [INTV:EDGE] getcwd(NULL, 0)는 POSIX.1-2008/glibc 확장으로, 버퍼 크기를 미리 계산할
+    // 필요 없이 필요한 만큼 malloc해서 돌려준다 — 고정 크기 버퍼(PATH_MAX 등)를 썼다면
+    // 그보다 긴 경로에서 잘리거나 실패할 수 있었다.
     cwd = getcwd(NULL, 0);
     if (cwd == NULL) {
         fprintf(stderr, "small-shell: pwd: %s\n", strerror(errno));
@@ -95,6 +106,9 @@ static size_t argv_count(char **argv)
     return count;
 }
 
+// [INTV:ARCH] - [FLOW] cd 인자 해석 순서: 1. 인자 없음 -> HOME 필요 -> 2. `-`(하이픈)
+// -> OLDPWD로 이동하고 이동한 경로를 출력(print_target) -> 3. 그 외 -> 인자를 경로로 그대로
+// 사용. bash의 `cd -` 관례(직전 디렉터리로 복귀 + 그 경로 출력)를 그대로 재현한다.
 static int builtin_cd(t_shell *shell, char **argv)
 {
     const char  *target;
@@ -132,6 +146,9 @@ static int builtin_cd(t_shell *shell, char **argv)
     }
     new_pwd = getcwd(NULL, 0);
     status = 0;
+    // [INTV:ARCH] cd는 OLDPWD/PWD 두 환경변수를 갱신해야 다음 `cd -`가 동작하고, 서브셸을
+    // fork할 때 자식이 올바른 PWD를 물려받는다 — chdir(2) 자체는 프로세스의 작업 디렉터리만
+    // 바꿀 뿐 이 두 변수를 자동으로 갱신해주지 않으므로 셸이 직접 관리해야 한다.
     if (old_pwd != NULL && env_set(&shell->env, "OLDPWD", old_pwd, 1) != 0)
         status = 1;
     if (new_pwd != NULL && env_set(&shell->env, "PWD", new_pwd, 1) != 0)
@@ -183,6 +200,10 @@ static int valid_assignment_name(const char *key)
     return 1;
 }
 
+// [INTV:EDGE] `export FOO`(값 없는 대입)와 `export FOO=bar`를 split_assignment가 구분한다
+// — '='가 아예 없으면 value는 NULL이고, env_set()에서 NULL은 "값은 바꾸지 말고 exported
+// 플래그만 켜라"는 의미로 처리된다(env.c 참고). 즉 이미 값이 있는 변수를 export만 시키는
+// 경우와, 새 변수를 빈 값으로 export하는 경우가 여기서 갈린다.
 static int builtin_export(t_shell *shell, char **argv)
 {
     size_t  i;
@@ -237,6 +258,8 @@ static int parse_exit_status(const char *s, int *status)
     value = strtol(s, &end, 10);
     if (s == end || *end != '\0' || errno == ERANGE)
         return 0;
+    // [INTV:EDGE] exit 코드는 unsigned char로 잘라 저장한다 — `exit 256`이 셸 관례상 `exit 0`과
+    // 같은 값(256 & 0xff == 0)이 되는 bash 동작을 그대로 재현한다.
     *status = (unsigned char)value;
     return 1;
 }

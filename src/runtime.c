@@ -10,6 +10,11 @@
 #include <sys/wait.h>
 #include <unistd.h>
 
+// [INTV:ARCH] 이 파일은 malloc/pipe/fork/dup2/read/write 같은 시스템 콜을 전부 shell_*
+// 래퍼로 감싸는 계층이다. 실행 코드는 이 래퍼만 호출하고 libc 함수를 직접 부르지 않는다.
+// - [TRAP] 래퍼 계층이 없으면 "n번째 malloc이 실패했을 때" 같은 특정 지점의 실패를
+//   테스트로 재현할 방법이 없다 — 아래 SMALL_SHELL_TESTING 블록이 바로 그 재현 장치다.
+
 #ifdef SMALL_SHELL_TESTING
 
 static const char       *g_alloc_scope;
@@ -17,6 +22,10 @@ static unsigned long    g_alloc_calls;
 static int              g_alloc_failed;
 static unsigned long    g_command_number;
 
+// [INTV:ARCH] 테스트 전용 장애 주입(fault injection) 계층. SMALL_SHELL_FAIL_ALLOC 같은
+// 환경변수로 "몇 번째 호출을 실패시킬지"를 지정해, 정상 실행으로는 만들기 어려운 ENOMEM/EINTR
+// 등의 에러 경로를 테스트에서 결정적으로 재현한다. 프로덕션 빌드(SMALL_SHELL_TESTING 미정의)
+// 에서는 이 블록 전체가 컴파일되지 않아 런타임 비용이 없다.
 static int fail_call(const char *name, unsigned long *calls)
 {
     const char      *text;
@@ -45,6 +54,11 @@ static int fail_call(const char *name, unsigned long *calls)
     return target == *calls;
 }
 
+// [INTV:ARCH] 할당 실패는 "몇 번째 커맨드에서, 어떤 alloc_scope(예: "parser", "heredoc")에서,
+// 몇 번째 호출을 실패시킬지"까지 3중으로 지정 가능하게 했다.
+// - [TRAP] alloc_scope 비교(g_alloc_scope)가 없으면 파서용 실패 지정이 그 전에 지나가는
+//   토크나이저 alloc까지 잘못 맞춰버릴 수 있다 — scope는 shell_runtime_set_alloc_scope()로
+//   각 처리 단계 진입 시마다 갱신된다.
 static int fail_allocation(void)
 {
     const char      *command_text;
@@ -113,6 +127,11 @@ void *shell_malloc(size_t size)
 
 void *shell_calloc(size_t count, size_t size)
 {
+    // [INTV:TRAP] calloc(count, size) 자체는 내부적으로 오버플로를 체크해주지만, 이 함수는
+    // 그 앞에서 한 번 더 count*size 오버플로를 검사한다 — SIZE_MAX/size 나눗셈으로 곱셈이
+    // SIZE_MAX를 넘는지 미리 판별. libc의 calloc 구현을 신뢰하지 못해서가 아니라, 이 검사가
+    // 있어야 SMALL_SHELL_TESTING 장애 주입 이전에 "진짜 크기 문제"와 "주입된 실패"를 같은
+    // 방식(errno=ENOMEM, NULL 반환)으로 통일해 호출부가 항상 같은 방식으로 처리하게 만든다.
     if (size != 0 && count > SIZE_MAX / size) {
         errno = ENOMEM;
         return NULL;
@@ -293,6 +312,9 @@ ssize_t shell_write(int fd, const void *buffer, size_t size)
     return write(fd, buffer, size);
 }
 
+// [INTV:TRAP] write(2)는 요청한 크기보다 적게 쓰고 반환할 수 있다(파이프 버퍼가 꽉 찼거나
+// 시그널에 끊긴 경우 등) — 이걸 무시하고 한 번의 write만 믿으면 출력이 잘린다. 여기서는
+// 다 쓸 때까지 반복하고, EINTR(시그널에 의한 중단)은 에러가 아니라 재시도 대상으로 구분한다.
 int shell_write_all(int fd, const void *buffer, size_t size)
 {
     const unsigned char *cursor;
